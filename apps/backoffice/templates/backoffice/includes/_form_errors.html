@@ -1,0 +1,12 @@
+{% comment %}Whole-form errors - the ones no single field owns.
+
+    {% include "backoffice/includes/_form_errors.html" with form=quote_form %}
+
+Nothing in the backoffice rendered these before; a failed clean() was
+invisible unless the view happened to flash it.
+{% endcomment %}
+{% if form.non_field_errors %}
+  <div class="alert alert-danger py-2 px-3 mb-2" role="alert">
+    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+  </div>
+{% endif %}

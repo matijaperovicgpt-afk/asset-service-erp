@@ -1,0 +1,503 @@
+{% load i18n form_tags %}
+<section class="guide-phase{% if guide.current_phase == 'intake' %} guide-phase-current{% endif %}" id="phase-intake">
+  <h2 class="guide-phase-title">{% trans "Scheduling and intake" %}</h2>
+
+  {% comment %} Procedure §7.1: reporter, owner and contact
+  person - three roles. The raw submission fields are the reporter and
+  Case.client is the owner; the third had no home, so every client
+  e-mail went to whoever filed the report even after triage found the
+  real owner. This card is what contact_details() resolves. {% endcomment %}
+  {% section "acc-contact-person" _("Contact person") %}
+    <dl class="row mb-3 small">
+      <dt class="col-sm-4">{% trans "Who we contact" %}</dt>
+      <dd class="col-sm-8 mb-1">
+        {% if case.contact_role %}
+          {{ case.get_contact_role_display }}
+          <span class="text-muted">&ndash; {{ contact_details.0|default:"-" }}</span>
+        {% else %}
+          <span class="badge text-bg-warning">{% trans "nobody designated" %}</span>
+        {% endif %}
+      </dd>
+      <dt class="col-sm-4">{% trans "Phone" %}</dt>
+      <dd class="col-sm-8 mb-1">{{ contact_details.1|default:"-" }}</dd>
+      <dt class="col-sm-4">{% trans "Email" %}</dt>
+      <dd class="col-sm-8">{{ contact_details.2|default:"-" }}</dd>
+    </dl>
+    <form method="post" action="{% url 'backoffice:case-contact-person' case.pk %}" class="row g-2">
+      {% csrf_token %}
+      <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=contact_person_form %}</div>
+      <div class="col-12">{% include "backoffice/includes/_field.html" with field=contact_person_form.role %}</div>
+      <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=contact_person_form.name %}</div>
+      <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=contact_person_form.phone %}</div>
+      <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=contact_person_form.email %}</div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-sm btn-primary">{% trans "Save contact person" %}</button>
+        <div class="form-text">{% trans "Every e-mail and every call about this case goes here. The last three fields are only used for a representative or someone else (§7.1)." %}</div>
+      </div>
+    </form>
+  {% endsection %}
+
+  {% comment %} Procedure §7.2: name, type, manufacturer, model,
+  registration, length. Only the length was ever enforced - it is the one
+  NOT NULL column - and until now the backoffice could not edit an asset
+  at all, so whatever triage left blank stayed blank unless somebody
+  opened the Django admin. The intake record now refuses a receipt that
+  cannot say which asset it is for. {% endcomment %}
+  {% section "acc-asset-identity" _("Asset identification") %}
+    {% if not case.asset %}
+      {% comment %} No asset linked at all. The guide still lists the step
+      - the gate is real either way - so the card has to exist to be
+      pointed at, and the honest action here is triage, not this form.
+      Same shape as the STORAGE "acc-asset-link" card. {% endcomment %}
+      <p class="mb-2 text-muted">
+        {% trans "No asset linked yet. Triage is where the asset is matched or created, and the case cannot be received until it is (§7.2)." %}
+      </p>
+      {% if needs_triage %}
+        <a class="btn btn-sm btn-primary" href="{% url 'backoffice:case-triage' case.pk %}">{% trans "Triage" %}</a>
+      {% endif %}
+    {% else %}
+      <p class="mb-2">
+        {% if asset_missing_identification %}
+          <span class="badge text-bg-warning">{% trans "incomplete" %}</span>
+          <span class="text-muted small">
+            {% trans "Still missing" %}:
+            {% for field in asset_missing_identification %}{{ field }}{% if not forloop.last %}, {% endif %}{% endfor %}
+          </span>
+        {% else %}
+          <span class="badge text-bg-success">&#10003;</span>
+          <span class="text-muted small">{% trans "All six asset data recorded." %}</span>
+        {% endif %}
+      </p>
+      <form method="post" action="{% url 'backoffice:case-asset-identity' case.pk %}" class="row g-2">
+        {% csrf_token %}
+        <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=asset_identity_form %}</div>
+        <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=asset_identity_form.name %}</div>
+        <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=asset_identity_form.asset_type %}</div>
+        <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=asset_identity_form.manufacturer %}</div>
+        <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=asset_identity_form.model %}</div>
+        <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=asset_identity_form.registration_no %}</div>
+        <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=asset_identity_form.length_m %}</div>
+        <div class="col-12">{% include "backoffice/includes/_field.html" with field=asset_identity_form.is_unregistered %}</div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-sm btn-primary">{% trans "Save asset data" %}</button>
+          <div class="form-text">{% trans "The case cannot be received until all six are answered - a ticket has to say which asset it is about (§7.2)." %}</div>
+        </div>
+      </form>
+    {% endif %}
+  {% endsection %}
+
+  {% comment %} SVC-01 / procedure §7.4: "symptom description and the
+  client's assessment of the fault" - two data, and the second one had no field at
+  all until now. Kept beside each other because the whole value of the
+  client's guess is that the diagnosis can be read against it. {% endcomment %}
+  {% if case.case_type == "SERVICE" %}
+    {% section "acc-fault-report" _("Fault report") %}
+      <dl class="row mb-3 small">
+        <dt class="col-sm-4">{% trans "Where the asset is" %}</dt>
+        <dd class="col-sm-8 mb-1">
+          {% if case.location %}
+            {{ case.location }}
+          {% else %}
+            <span class="badge text-bg-warning">{% trans "not recorded" %}</span>
+          {% endif %}
+        </dd>
+        <dt class="col-sm-4">{% trans "Symptoms" %}</dt>
+        <dd class="col-sm-8 mb-1">
+          {% if case.symptoms_description %}
+            {{ case.symptoms_description|linebreaksbr }}
+          {% else %}
+            <span class="badge text-bg-warning">{% trans "not described" %}</span>
+          {% endif %}
+        </dd>
+        <dt class="col-sm-4">{% trans "Client's assessment" %}</dt>
+        <dd class="col-sm-8 mb-0">
+          {% if case.client_diagnosis %}
+            {{ case.client_diagnosis|linebreaksbr }}
+          {% elif case.client_gave_no_assessment %}
+            <span class="text-muted">{% trans "The client had no view of what is wrong." %}</span>
+          {% else %}
+            <span class="badge text-bg-warning">{% trans "not asked" %}</span>
+          {% endif %}
+        </dd>
+      </dl>
+      {% comment %} §7.3: "date, time, location and reporting channel". The
+      date and the channel are captured by construction; the location was
+      written by both creation paths and read only for display, so a
+      report could reach the scheduling conversation with nobody knowing
+      where the asset was. {% endcomment %}
+      <form method="post" action="{% url 'backoffice:case-report-location' case.pk %}" class="row g-2 mb-3">
+        {% csrf_token %}
+        <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=report_location_form %}</div>
+        <div class="col-md-8">{% include "backoffice/includes/_field.html" with field=report_location_form.location %}</div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="submit" class="btn btn-sm btn-outline-secondary mb-3">{% trans "Save location" %}</button>
+        </div>
+      </form>
+      <form method="post" action="{% url 'backoffice:case-client-assessment' case.pk %}">
+        {% csrf_token %}
+        {% include "backoffice/includes/_form_errors.html" with form=client_assessment_form %}
+        {% include "backoffice/includes/_field.html" with field=client_assessment_form.client_diagnosis wrapper_class="mb-2" %}
+        {% include "backoffice/includes/_field.html" with field=client_assessment_form.gave_no_assessment wrapper_class="mb-2" %}
+        <button type="submit" class="btn btn-sm btn-primary">{% trans "Save the client's assessment" %}</button>
+        <div class="form-text">{% trans "Diagnostics cannot start until this is answered - what the client thinks is wrong, or that they had no view (SVC-01)." %}</div>
+      </form>
+    {% endsection %}
+  {% endif %}
+
+  {% if case.case_type == "STORAGE" %}
+    {% section "acc-storage-docs" _("Storage documentation") %}
+      <p class="mb-2">
+        {% trans "Client contact" %}:
+        {% if case.raw_phone or case.raw_email or case.client.phone or case.client.email %}
+          <span class="badge text-bg-success">{% trans "recorded" %}</span>
+          <span class="text-muted small">
+            {% if case.raw_phone %}{{ case.raw_phone }}{% elif case.client %}{{ case.client.phone }}{% endif %}
+            {% if case.raw_email %}{{ case.raw_email }}{% elif case.client %}{{ case.client.email }}{% endif %}
+          </span>
+        {% else %}
+          <span class="badge text-bg-warning">{% trans "missing" %}</span>
+        {% endif %}
+      </p>
+      <p class="mb-3">
+        {% trans "Suggested price (price list)" %}:
+        {% if storage_suggested_price is not None %}
+          <span class="fw-semibold">{{ storage_suggested_price }} &euro;</span>
+        {% else %}
+          <span class="text-muted">{% trans "no price-list price for this length/accommodation/term yet" %}</span>
+        {% endif %}
+        {% if storage_agreement.agreed_price is not None %}
+          &middot; {% trans "Agreed price" %}: <span class="fw-semibold">{{ storage_agreement.agreed_price }} &euro;</span>
+        {% endif %}
+      </p>
+      <form method="post" action="{% url 'backoffice:storage-docs' case.pk %}" class="row g-2 mb-2">
+        {% csrf_token %}
+        <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=storage_docs_form %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=storage_docs_form.permit_no %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=storage_docs_form.asset_length_m %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=storage_docs_form.asset_width_m %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=storage_docs_form.accommodation %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=storage_docs_form.term %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=storage_docs_form.agreed_price %}</div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-sm btn-primary">{% trans "Save documentation" %}</button>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:storage-intake' case.pk %}">{% trans "Database entry" %}</a>
+        </div>
+      </form>
+      <div class="form-text">{% trans "Contact, permit and asset length are required before the quote is sent; the permit scan can be uploaded under attachments." %}</div>
+    {% endsection %}
+
+    {% section "acc-site-pickup" _("Site pickup") %}
+      <p class="text-muted small mb-3">{% trans "Many clients cannot deliver the asset themselves, so the service organizes collecting it and delivering it from its own or another site. The site is set under database entry; the receipt, inventory and photos are recorded in the intake records below." %}</p>
+      <p class="mb-3">
+        {% trans "Origin site" %}:
+        {% if storage_agreement.origin_site %}
+          <span class="fw-semibold">{{ storage_agreement.origin_site }}</span>
+        {% else %}
+          <span class="text-muted">{% trans "not set yet" %}</span>
+        {% endif %}
+        &middot; {% trans "Receipt" %}:
+        {% if site_pickup.intake_record %}
+          <a href="#section-acc-intake"><span class="badge text-bg-success">{% trans "linked" %} #{{ site_pickup.intake_record_id }}</span></a>
+        {% else %}
+          <a href="#section-acc-intake"><span class="badge text-bg-warning">{% trans "record below" %}</span></a>
+        {% endif %}
+      </p>
+      <form method="post" action="{% url 'backoffice:storage-pickup' case.pk %}" class="row g-2 mb-2">
+        {% csrf_token %}
+        <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=site_pickup_form %}</div>
+        <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=site_pickup_form.organized_by %}</div>
+        <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=site_pickup_form.status %}</div>
+        <div class="col-md-4 d-flex align-items-end">{% include "backoffice/includes/_field.html" with field=site_pickup_form.is_own_site %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=site_pickup_form.lift_out_method %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=site_pickup_form.lift_out_date %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=site_pickup_form.transport_mode %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=site_pickup_form.scheduled_date %}</div>
+        <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=site_pickup_form.carrier_name %}</div>
+        <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=site_pickup_form.notes %}</div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-sm btn-primary">{% trans "Save pickup" %}</button>
+        </div>
+      </form>
+    {% endsection %}
+  {% endif %}
+
+  {% if case.case_type == "SERVICE" %}
+    {% section "acc-work-location" _("Where the work is done") %}
+      <p class="mb-2">
+        {% if case.work_location %}
+          <span class="badge text-bg-info">{{ case.get_work_location_display }}</span>
+          {% if case.works_on_site %}
+            <span class="text-muted small d-block mt-1">
+              {% trans "The asset stays where it is: no intake record, no receipt confirmation and no handover record are required on this case." %}
+            </span>
+          {% endif %}
+        {% else %}
+          <span class="badge text-bg-secondary">{% trans "not consulted" %}</span>
+          <span class="text-muted small d-block mt-1">
+            {% trans "Until this is answered the case expects the asset to be delivered to the service centre." %}
+          </span>
+        {% endif %}
+      </p>
+      <form method="post" action="{% url 'backoffice:case-work-location' case.pk %}" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=work_location_form %}</div>
+        <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=work_location_form.work_location %}</div>
+        <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=work_location_form.consulted %}</div>
+        <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=work_location_form.note %}</div>
+        <div class="col-md-1">
+          <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Save" %}</button>
+        </div>
+      </form>
+      <small class="text-muted d-block">
+        {% trans "SVC-03: agreed with a technician before the asset arrives. Recorded as an activity entry." %}
+      </small>
+
+      {% comment %}SVC-04: the second pre-arrival answer. It only exists when
+      the first one says the asset is coming in - an on-site job delivers
+      nothing anywhere, and the service refuses to record a method there.
+      {% endcomment %}
+      {% if not case.works_on_site %}
+        <div class="border-top mt-3 pt-3">
+          <h3 class="h6 mb-2">{% trans "How the asset gets here" %}</h3>
+          <p class="mb-2">
+            {% if case.delivery_method %}
+              <span class="badge text-bg-info">{{ case.get_delivery_method_display }}</span>
+            {% else %}
+              <span class="badge text-bg-warning">{% trans "not agreed" %}</span>
+              <span class="text-muted small d-block mt-1">
+                {% trans "The intake cannot be scheduled until this is agreed - the date and the way the asset arrives are settled in the same conversation." %}
+              </span>
+            {% endif %}
+          </p>
+          <form method="post" action="{% url 'backoffice:case-delivery-method' case.pk %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=delivery_method_form %}</div>
+            <div class="col-md-5">{% include "backoffice/includes/_field.html" with field=delivery_method_form.delivery_method %}</div>
+            <div class="col-md-5">{% include "backoffice/includes/_field.html" with field=delivery_method_form.note %}</div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Save" %}</button>
+            </div>
+          </form>
+          <small class="text-muted d-block">
+            {% trans "SVC-04: part of what \"Intake scheduled\" means. Recorded as an activity entry." %}
+          </small>
+        </div>
+      {% endif %}
+    {% endsection %}
+  {% endif %}
+
+  {% section "acc-appointments" _("Appointments") %}
+    <ul class="list-group list-group-flush mb-3">
+      {% for appointment in appointments %}
+        <li class="list-group-item d-flex justify-content-between px-0">
+          <span>{{ appointment.get_kind_display }}{% if appointment.note %} - <small class="text-muted">{{ appointment.note }}</small>{% endif %}</span>
+          <span>{{ appointment.scheduled_for|date:"d.m.Y H:i" }}</span>
+        </li>
+      {% empty %}
+        <li class="list-group-item text-muted px-0">{% trans "No appointments." %}</li>
+      {% endfor %}
+    </ul>
+    <form method="post" action="{% url 'backoffice:appointment-book' case.pk %}" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=appointment_form %}</div>
+      <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=appointment_form.kind %}</div>
+      <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=appointment_form.scheduled_for %}</div>
+      <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=appointment_form.note %}</div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Book appointment" %}</button>
+      </div>
+    </form>
+  {% endsection %}
+
+  {% if case.case_type == "SERVICE" %}
+    {% section "acc-work-order" _("Work order") %}
+      {% if work_order %}
+        <p class="mb-2">
+          #{{ work_order.pk }}
+          {% if work_order.is_preliminary %}<span class="badge text-bg-secondary">{% trans "preliminary" %}</span>
+          {% else %}<span class="badge text-bg-info">{% trans "final" %}</span>
+            {% if work_order.verified_by %}
+              <span class="text-muted small">{% trans "endorsed by" %} {{ work_order.verified_by }} - {{ work_order.verified_at|date:"d.m.Y H:i" }}</span>
+            {% endif %}
+          {% endif %}
+          {% if work_order_has_approval %}
+            <span class="badge text-bg-success">{% trans "client approval on file" %}</span>
+          {% else %}
+            <span class="badge text-bg-warning">{% trans "client approval missing" %}</span>
+          {% endif %}
+          {% if work_order.signed_at %}
+            <span class="badge text-bg-success">{% trans "signed" %}</span>
+            {% if work_order.signed_by_technician %}{% trans "by technician" %} {{ work_order.signed_by_technician }} - {% endif %}{{ work_order.signed_at|date:"d.m.Y H:i" }}
+          {% else %}<span class="badge text-bg-warning">{% trans "unsigned" %}</span>{% endif %}
+        </p>
+        {% if work_order.is_preliminary %}
+          <form method="post" action="{% url 'backoffice:work-order-finalize' case.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-secondary mb-2">{% trans "Mark final" %}</button>
+          </form>
+        {% endif %}
+        {% if not work_order_has_approval %}
+          <form method="post" action="{% url 'backoffice:work-order-approval' case.pk %}" enctype="multipart/form-data" class="mb-2">
+            {% csrf_token %}
+            {% include "backoffice/includes/_form_errors.html" with form=work_order_approval_form %}
+            {% include "backoffice/includes/_field.html" with field=work_order_approval_form.file %}
+            <button type="submit" class="btn btn-sm btn-primary">{% trans "Upload client approval" %}</button>
+            <div class="form-text">{% trans "Scan of the work order filled in and signed by the client." %}</div>
+          </form>
+        {% endif %}
+        {% if not work_order.signed_at %}
+          <form method="post" action="{% url 'backoffice:work-order-sign' case.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-primary"{% if not work_order_has_approval %} disabled{% endif %}>{% trans "Sign as responsible technician" %}</button>
+            {% if not work_order_has_approval %}
+              <div class="form-text">{% trans "Upload the client approval first." %}</div>
+            {% endif %}
+          </form>
+        {% endif %}
+      {% else %}
+        <form method="post" action="{% url 'backoffice:work-order-create' case.pk %}">
+          {% csrf_token %}
+          <p class="text-muted mb-2">{% trans "No work order yet - the preliminary order is signed at intake." %}</p>
+          <button type="submit" class="btn btn-sm btn-primary">{% trans "Open work order" %}</button>
+        </form>
+      {% endif %}
+    {% endsection %}
+  {% endif %}
+
+  {% section "acc-intake" _("Intake records") %}
+    <ul class="list-group list-group-flush mb-3">
+      {% for record in intake_records %}
+        <li class="list-group-item px-0">
+          <div class="d-flex justify-content-between">
+            <span>
+              #{{ record.pk }} - {{ record.created_at|date:"d.m.Y H:i" }}
+              {% if record.mount_status %}<span class="badge text-bg-light">{{ record.get_mount_status_display }}</span>{% endif %}
+              {% if record.cleanliness_status %}<span class="badge text-bg-light">{{ record.get_cleanliness_status_display }}</span>{% endif %}
+              {% if record.energy_level %}<span class="badge text-bg-light">{% trans "Fuel" %}: {{ record.get_energy_level_display }}</span>{% endif %}
+            </span>
+            {% if record.signed_at %}
+              <span><span class="badge text-bg-success">{% trans "received" %}</span> {{ record.signed_by|default:"" }}</span>
+            {% else %}<span class="badge text-bg-warning">{% trans "unsigned" %}</span>{% endif %}
+          </div>
+          {% if record.damage_note %}
+            <div class="small text-muted mt-1">{% trans "Visible damage / issues:" %} {{ record.damage_note|truncatechars:160 }}</div>
+          {% endif %}
+          {% if record.items.all %}
+            <div class="table-responsive">
+              <table class="table table-sm mb-1 mt-2">
+                <thead><tr><th>{% trans "Category" %}</th><th>{% trans "Item" %}</th><th>{% trans "Qty" %}</th><th>{% trans "Condition" %}</th>{% if not record.signed_at %}<th></th>{% endif %}</tr></thead>
+                <tbody>
+                  {% for item in record.items.all %}
+                    <tr>
+                      <td><span class="badge text-bg-light">{{ item.get_category_display }}</span></td>
+                      <td>{{ item.item_name }}</td>
+                      <td>{{ item.quantity }}</td>
+                      <td>{{ item.condition_note|default:"-" }}</td>
+                      {% if not record.signed_at %}
+                        <td class="text-end">
+                          <form method="post" action="{% url 'backoffice:intake-item-delete' case.pk record.pk item.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-link text-danger p-0">{% trans "remove" %}</button>
+                          </form>
+                        </td>
+                      {% endif %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% elif record.no_items_received %}
+            <div class="small text-muted mt-1">{% trans "Nothing was received with the asset." %}</div>
+          {% elif not record.signed_at %}
+            <div class="small text-muted mt-1">{% trans "No items listed yet - record personal items, equipment, keys and documents received with the asset." %}</div>
+            <form method="post" action="{% url 'backoffice:intake-no-items' case.pk record.pk %}" class="mt-1">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-secondary">{% trans "Nothing was received" %}</button>
+              <small class="text-muted d-block mt-1">{% trans "Receipt cannot be confirmed until the inventory is either listed or answered." %}</small>
+            </form>
+          {% endif %}
+          {% if record.amendments.all %}
+            <div class="mt-2">
+              <div class="small fw-semibold">{% trans "Later-discovered condition" %}</div>
+              <ul class="list-unstyled mb-0">
+                {% for amendment in record.amendments.all %}
+                  <li class="small text-muted">
+                    {{ amendment.created_at|date:"d.m.Y H:i" }}{% if amendment.author %} - {{ amendment.author }}{% endif %}: {{ amendment.text }}
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if record.signed_at %}
+            {% comment %} SVC-07 / INV-12: a signed intake record is final, so
+               anything noticed later is appended here rather than edited
+               into the record above. {% endcomment %}
+            <form method="post" action="{% url 'backoffice:intake-amendment-add' case.pk record.pk %}" class="mt-2">
+              {% csrf_token %}
+              {% include "backoffice/includes/_form_errors.html" with form=intake_amendment_form %}
+              {% include "backoffice/includes/_field.html" with field=intake_amendment_form.text %}
+              <button type="submit" class="btn btn-sm btn-outline-primary">{% trans "Append to the intake record" %}</button>
+            </form>
+          {% endif %}
+          {% if not record.signed_at %}
+            <form method="post" action="{% url 'backoffice:intake-item-add' case.pk record.pk %}" class="row g-2 mt-1 align-items-end">
+              {% csrf_token %}
+              <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=intake_item_form %}</div>
+              <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=intake_item_form.category %}</div>
+              <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=intake_item_form.item_name %}</div>
+              <div class="col-md-2">{% include "backoffice/includes/_field.html" with field=intake_item_form.quantity %}</div>
+              <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=intake_item_form.condition_note %}</div>
+              <div class="col-md-1">
+                <button type="submit" class="btn btn-sm btn-outline-primary mb-2">{% trans "Add" %}</button>
+              </div>
+            </form>
+            <form method="post" action="{% url 'backoffice:intake-sign' case.pk record.pk %}" class="mt-2">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-primary">{% trans "Confirm asset receipt" %}</button>
+              <small class="text-muted d-block mt-1">{% trans "Signed in the name of the responsible technician when one is assigned; otherwise in your name." %}</small>
+            </form>
+          {% endif %}
+        </li>
+      {% empty %}
+        <li class="list-group-item text-muted px-0">{% trans "No intake records." %}</li>
+      {% endfor %}
+    </ul>
+    {% if not case.requires_asset_intake %}
+    {% comment %} SVC-03: the asset never comes in, so there is no receipt to
+       write - offering the form would only invite a false mount status.
+       The photos the guard does want are uploaded from the attachments
+       card at the Intake stage. {% endcomment %}
+    <div class="border-top pt-3">
+      <p class="text-muted mb-1">
+        {% trans "This work is done where the asset lies, so nothing is received and no intake record is written." %}
+      </p>
+      <p class="text-muted small mb-0">
+        {% trans "Photograph the asset at the visit before starting work and upload it under the Intake stage in Attachments." %}
+      </p>
+    </div>
+    {% else %}
+    <div class="border-top pt-3">
+      <form method="post" action="{% url 'backoffice:intake-create' case.pk %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% include "backoffice/includes/_form_errors.html" with form=intake_form %}
+        <div class="row g-2">
+          <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=intake_form.mount_status %}</div>
+          <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=intake_form.cleanliness_status %}</div>
+          <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=intake_form.energy_level %}</div>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=intake_form.storage_location %}</div>
+        </div>
+        {% include "backoffice/includes/_field.html" with field=intake_form.damage_note %}
+        {% include "backoffice/includes/_field.html" with field=intake_form.general_condition_note %}
+        <div class="row g-2">
+          <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=intake_form.photos %}</div>
+          <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=intake_form.videos %}</div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">{% trans "Create intake record" %}</button>
+        <small class="text-muted d-block mt-1">{% trans "Photograph or film the asset as it arrived - wash it first if it is dirty so hidden damage and the true condition of outline and equipment are visible. Photos are required; video is optional." %}</small>
+      </form>
+    </div>
+    {% endif %}
+  {% endsection %}
+</section>

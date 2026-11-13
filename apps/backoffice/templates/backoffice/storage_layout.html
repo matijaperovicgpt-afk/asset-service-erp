@@ -1,0 +1,190 @@
+{% extends "backoffice/base.html" %}
+{% load i18n l10n static %}
+
+{% block title %}{% trans "Storage layout" %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:home' %}">{% trans "Home" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-storage' %}">{% trans "Storage" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Storage layout" %}</li>
+    </ol>
+  </nav>
+  <div class="page-heading mb-3 d-flex align-items-center gap-2 flex-wrap">
+    <h1 class="h3 mb-0">{% trans "Storage layout (yard plan)" %}</h1>
+    <span class="ms-auto d-flex flex-wrap gap-2">
+      {% if can_edit_yard %}
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'backoffice:storage-zone-add' %}">{% trans "New yard" %}</a>
+      {% endif %}
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:storage-fit-check' %}">{% trans "Space check" %}</a>
+    </span>
+  </div>
+
+  <p class="text-muted">
+    {% trans "The entry/exit plan for the yard (WNT-05): each asset is drawn to scale so the assets that leave first stay reachable at the exit edge. Colour runs dark to bright in order of leaving, and the exit month is printed inside each outline, so the plan reads without relying on colour. Each outline points its front the way it will be moved out - towards the exit, or towards the left edge when parked crosswise." %}
+  </p>
+
+  {% if place_case %}
+    <div class="card mb-4 border-primary yard-placing" id="yard-placer">
+      <div class="card-header bg-primary text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>{% blocktrans with case=place_case.pk %}Placing asset for case #{{ case }}{% endblocktrans %}</span>
+        {% if placed_position %}
+          <small>{% blocktrans with pos=placed_position %}Already on the plan at {{ pos }} - aim to move it{% endblocktrans %}</small>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if asset_dims %}
+          <p class="mb-2">
+            {% blocktrans with length=asset_dims.length width=asset_dims.width case=place_case.pk %}Asset footprint: {{ length }} m x {{ width }} m. Aim at a spot in a yard below - the outline marked #{{ case }} follows the pointer and shows whether the spot is legal before you commit.{% endblocktrans %}
+          </p>
+          <form method="post" action="{% url 'backoffice:storage-place' place_case.pk %}"
+                id="place-form" class="row g-2 align-items-end"
+                data-case="{{ place_case.pk|unlocalize }}"
+                data-length="{{ asset_dims.length|unlocalize }}"
+                data-width="{{ asset_dims.width|unlocalize }}">
+            {% csrf_token %}
+            <div class="col-auto">
+              <label class="form-label small mb-0" for="{{ placement_form.zone.id_for_label }}">{{ placement_form.zone.label }}</label>
+              {{ placement_form.zone }}
+            </div>
+            <div class="col-auto">
+              <label class="form-label small mb-0" for="{{ placement_form.orientation.id_for_label }}">{{ placement_form.orientation.label }}</label>
+              {{ placement_form.orientation }}
+            </div>
+            <div class="col-auto" style="max-width: 6rem;">
+              <label class="form-label small mb-0" for="{{ placement_form.pos_x_m.id_for_label }}">{{ placement_form.pos_x_m.label }}</label>
+              {{ placement_form.pos_x_m }}
+            </div>
+            <div class="col-auto" style="max-width: 6rem;">
+              <label class="form-label small mb-0" for="{{ placement_form.pos_y_m.id_for_label }}">{{ placement_form.pos_y_m.label }}</label>
+              {{ placement_form.pos_y_m }}
+            </div>
+            <div class="col-auto">
+              <label class="form-label small mb-0" for="{{ placement_form.planned_exit_date.id_for_label }}">{{ placement_form.planned_exit_date.label }}</label>
+              {{ placement_form.planned_exit_date }}
+            </div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="rotate-btn">{% trans "Rotate 90°" %}</button>
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="btn btn-sm btn-primary" id="place-btn">
+                {% if placed_position %}{% trans "Move asset" %}{% else %}{% trans "Place asset" %}{% endif %}
+              </button>
+            </div>
+          </form>
+          {% if placement_form.errors %}
+            <div class="text-danger small mt-2">{{ placement_form.errors }}</div>
+          {% endif %}
+          <p class="yard-verdict mb-0 mt-2" id="place-verdict" aria-live="polite"></p>
+          <div class="form-text">
+            {% trans "The outline follows the pointer while it is over a yard, and stays where you left it so you can reach the button - nothing is written until you press it. Escape drops the aim. With the plan focused, the arrow keys nudge by one metre (hold Shift for half) and Enter places." %}
+          </div>
+        {% else %}
+          <p class="text-warning mb-0">{% trans "Record the asset length on the agreement before placing it on the yard." %}</p>
+        {% endif %}
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:case-detail' place_case.pk %}">{% trans "Back to case" %}</a>
+          {% if placed_position %}
+            <form method="post" action="{% url 'backoffice:storage-unplace' place_case.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Lift out (free the ground)" %}</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-lg-3">
+      <div class="card yard-waiting">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>{% trans "Waiting for a spot" %}</span>
+          <span class="badge text-bg-secondary">{{ waiting|length }}</span>
+        </div>
+        {% if waiting %}
+          <ul class="list-group list-group-flush">
+            {% for item in waiting %}
+              <li class="list-group-item{% if place_case and place_case.pk == item.case.pk %} active-aim{% endif %}">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                  <div>
+                    <a href="{% url 'backoffice:case-detail' item.case.pk %}">#{{ item.case.pk }}</a>
+                    {% if item.client %}<span class="text-muted small">{{ item.client }}</span>{% endif %}
+                    <div class="small text-muted">
+                      {% if item.placeable %}
+                        {{ item.length }} m x {{ item.width }} m
+                      {% else %}
+                        <span class="text-danger">{% trans "no length recorded" %}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                  {% if item.placeable %}
+                    <a class="btn btn-sm btn-outline-primary"
+                       href="{% url 'backoffice:storage-layout' %}?case={{ item.case.pk }}">{% trans "Place" %}</a>
+                  {% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="card-body">
+            <p class="text-muted small mb-0">{% trans "Every open storage case has a spot on the plan." %}</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-9">
+      {% for zv in zone_views %}
+        <div class="card mb-4">
+          <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 gap-md-3">
+            <span>{{ zv.zone.name }}</span>
+            <span class="yard-verdict small flex-grow-1 text-end" data-verdict-for="{{ zv.zone.pk|unlocalize }}"></span>
+            <small class="text-muted text-nowrap">
+              {% blocktrans count n=zv.asset_count with pct=zv.used_pct %}{{ n }} asset · {{ pct }}% of area{% plural %}{{ n }} assets · {{ pct }}% of area{% endblocktrans %}
+              · {{ zv.zone.width_m }} x {{ zv.zone.length_m }} m
+            </small>
+            {% if can_edit_yard %}
+              <a class="btn btn-sm btn-outline-secondary text-nowrap" href="{% url 'backoffice:storage-zone-edit' zv.zone.pk %}">{% trans "Edit yard" %}</a>
+            {% endif %}
+          </div>
+          <div class="card-body">
+            {% include "backoffice/includes/_yard_svg.html" with zv=zv %}
+            {% if zv.assets %}
+              <ul class="list-inline small mt-2 mb-0">
+                {% for asset in zv.assets %}
+                  <li class="list-inline-item me-3">
+                    <span class="badge" style="background:{{ asset.fill }}">&nbsp;</span>
+                    <a href="{% url 'backoffice:case-detail' asset.case.pk %}">#{{ asset.case.pk }}</a>
+                    - {{ asset.length }} m
+                    {% if asset.exit_date %}<span class="text-muted">({{ asset.exit_date|date:"d.m.Y" }})</span>{% endif %}
+                    <a class="small" href="{% url 'backoffice:storage-layout' %}?case={{ asset.case.pk }}">{% trans "move" %}</a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="text-muted small mt-2 mb-0">{% trans "No assets placed in this zone yet." %}</p>
+            {% endif %}
+            {% if zv.zone.clearance_m %}
+              <p class="text-muted small mt-2 mb-0">
+                {% blocktrans with gap=zv.zone.clearance_m %}This yard keeps {{ gap }} m of working space between outlines.{% endblocktrans %}
+              </p>
+            {% endif %}
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-muted">
+          {% trans "No storage zones defined yet." %}
+          {% if can_edit_yard %}<a href="{% url 'backoffice:storage-zone-add' %}">{% trans "Draw the first yard." %}</a>{% endif %}
+        </p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if place_case and asset_dims and zone_views %}
+    {{ yard_data|json_script:"yard-data" }}
+    {{ yard_labels|json_script:"yard-labels" }}
+    <script src="{% static 'js/yard.js' %}"></script>
+  {% endif %}
+{% endblock %}

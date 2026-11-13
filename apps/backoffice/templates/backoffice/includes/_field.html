@@ -1,0 +1,57 @@
+{% comment %}One form field: label, required marker, widget, help text, errors.
+
+    {% include "backoffice/includes/_field.html" with field=form.amount %}
+    {% include "backoffice/includes/_field.html" with field=form.price label_sr_only=True wrapper_class="mb-0" %}
+
+The client-facing twin is portal/_field.html. This one adds what the
+backoffice needs on top: Bootstrap validation styling, the fieldset/legend
+branch a radio or checkbox group needs, and label_sr_only for the
+inline-editable price tables, where the column header is the visible label
+and a second one would just repeat it - the label is still emitted so the
+widget keeps an accessible name.
+
+Two details that are not free choices:
+
+* The required marker is derived from the field, never hand-typed. The four
+  phase templates between them carried 16 hand-written asterisks against
+  about 70 required fields, so its absence meant nothing. It is
+  aria-hidden because Django already emits the real ``required`` attribute.
+* The help and error containers must carry ``<auto_id>_helptext`` and
+  ``<auto_id>_error``. Django writes an ``aria-describedby`` pointing at
+  exactly those ids onto the widget itself, so any other id leaves the
+  reference dangling. That is also why label_sr_only hides the help text
+  with visually-hidden rather than dropping it: a model help_text printed
+  inside an 8rem table cell made each parts-catalogue row twelve lines
+  tall, but the div has to stay in the DOM for the reference to resolve.
+{% endcomment %}
+{% load form_tags %}
+{% if field.use_fieldset %}
+  {% comment %}A radio or checkbox group has no single input to label, so
+  id_for_label is empty and a <label for> would point nowhere.{% endcomment %}
+  <fieldset class="{{ wrapper_class|default:'mb-2' }}" id="field-{{ field.html_name }}">
+    <legend class="form-label{% if label_sr_only %} visually-hidden{% endif %}">
+      {{ field.label }}{% if field.field.required %} <span class="req" aria-hidden="true">*</span>{% endif %}
+    </legend>
+    {% bs_field field %}
+    {% if field.help_text %}<div class="form-text{% if label_sr_only %} visually-hidden{% endif %}" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</div>{% endif %}
+    {% if field.errors %}<div class="invalid-feedback d-block" id="{{ field.auto_id }}_error">{% for error in field.errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+  </fieldset>
+{% elif field.field.widget.input_type == "checkbox" %}
+  <div class="form-check {{ wrapper_class|default:'mb-2' }}" id="field-{{ field.html_name }}">
+    {% bs_field field %}
+    <label class="form-check-label{% if label_sr_only %} visually-hidden{% endif %}" for="{{ field.id_for_label }}">
+      {{ field.label }}{% if field.field.required %} <span class="req" aria-hidden="true">*</span>{% endif %}
+    </label>
+    {% if field.help_text %}<div class="form-text{% if label_sr_only %} visually-hidden{% endif %}" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</div>{% endif %}
+    {% if field.errors %}<div class="invalid-feedback d-block" id="{{ field.auto_id }}_error">{% for error in field.errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+  </div>
+{% else %}
+  <div class="{{ wrapper_class|default:'mb-2' }}" id="field-{{ field.html_name }}">
+    <label class="form-label{% if label_sr_only %} visually-hidden{% endif %}" for="{{ field.id_for_label }}">
+      {{ field.label }}{% if field.field.required %} <span class="req" aria-hidden="true">*</span>{% endif %}
+    </label>
+    {% bs_field field %}
+    {% if field.help_text %}<div class="form-text{% if label_sr_only %} visually-hidden{% endif %}" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</div>{% endif %}
+    {% if field.errors %}<div class="invalid-feedback d-block" id="{{ field.auto_id }}_error">{% for error in field.errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+  </div>
+{% endif %}

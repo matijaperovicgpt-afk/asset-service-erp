@@ -1,0 +1,77 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% blocktrans with id=case.pk %}Transport inquiry for case #{{ id }} - Backoffice{% endblocktrans %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-transport' %}">{% trans "Transport" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:case-detail' case.pk %}">#{{ case.pk }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Inquiry" %}</li>
+    </ol>
+  </nav>
+  <h1 class="h3 mb-4">{% blocktrans with id=case.pk %}Transport inquiry (Upit) - case #{{ id }}{% endblocktrans %}</h1>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">{% trans "Raw submission data" %}</div>
+        <div class="card-body">
+          <dl class="row mb-0">
+            <dt class="col-sm-3">{% trans "Contact name" %}</dt>
+            <dd class="col-sm-9">{{ case.raw_contact_name|default:"-" }}</dd>
+            <dt class="col-sm-3">{% trans "Phone" %}</dt>
+            <dd class="col-sm-9">{{ case.raw_phone|default:"-" }}</dd>
+            <dt class="col-sm-3">{% trans "Email" %}</dt>
+            <dd class="col-sm-9">{{ case.raw_email|default:"-" }}</dd>
+            <dt class="col-sm-3">{% trans "Asset info" %}</dt>
+            <dd class="col-sm-9">{{ case.raw_asset_info|default:"-" }}</dd>
+          </dl>
+        </div>
+      </div>
+
+      {% if case.client or case.asset %}
+        <div class="card mb-4">
+          <div class="card-header">{% trans "Already linked" %}</div>
+          <div class="card-body">
+            <dl class="row mb-0">
+              {% if case.client %}
+                <dt class="col-sm-3">{% trans "Client" %}</dt>
+                <dd class="col-sm-9">{{ case.client }}</dd>
+              {% endif %}
+              {% if case.asset %}
+                <dt class="col-sm-3">{% trans "Asset" %}</dt>
+                <dd class="col-sm-9">{{ case.asset }} ({{ case.asset.length_m }} m)</dd>
+              {% endif %}
+            </dl>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="card mb-4">
+        <div class="card-header">{% trans "Asset, route and desired term" %}</div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            {% include "backoffice/includes/_form_fields.html" with form=form wrapper_class="mb-3" %}
+            <button type="submit" class="btn btn-success">{% trans "Save inquiry" %}</button>
+            <a class="btn btn-outline-secondary" href="{% url 'backoffice:case-detail' case.pk %}">{% trans "Cancel" %}</a>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header">{% trans "Pricing" %}</div>
+        <div class="card-body">
+          <p class="text-muted mb-2">
+            {% trans "The asset model and delivery zone select a price from the transport price list. Models priced individually (negotiable) give no automatic suggestion." %}
+          </p>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:section-transport-pricing' %}">{% trans "Transport price list" %}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

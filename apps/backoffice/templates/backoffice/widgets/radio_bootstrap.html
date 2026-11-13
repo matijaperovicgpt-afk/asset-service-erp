@@ -1,0 +1,13 @@
+{% comment %} One real Bootstrap .form-check per option. The stock multiple_input.html
+wraps each option in a bare <div> and puts the input inside the label, which
+gives no hanging indent - a label that wraps runs back under its own radio.
+The container deliberately carries no form-check-input class; see
+BootstrapRadioSelect. {% endcomment %}
+<div{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %} class="radio-group {{ widget.attrs.class|default:'' }}">
+  {% for group, options, index in widget.optgroups %}{% for option in options %}
+  <div class="form-check">
+    {% include "django/forms/widgets/input.html" with widget=option %}
+    <label class="form-check-label" for="{{ option.attrs.id }}">{{ option.label }}</label>
+  </div>
+  {% endfor %}{% endfor %}
+</div>

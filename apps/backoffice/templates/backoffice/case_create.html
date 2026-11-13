@@ -1,0 +1,53 @@
+{% extends "backoffice/base.html" %}
+{% load i18n form_tags %}
+
+{% block title %}{% trans "New case - Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:case-list' %}">{% trans "Cases" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "New case" %}</li>
+    </ol>
+  </nav>
+  <h1 class="h3 mb-4">{% trans "New case" %}</h1>
+
+  <div class="card">
+    <div class="card-body">
+      <p class="text-muted">
+        {% trans "For reports received by phone, e-mail or in person. Clients reporting online use the public portal." %}
+      </p>
+      <form method="post">
+        {% csrf_token %}
+        {% include "backoffice/includes/_form_errors.html" with form=form %}
+        {% for field in form.visible_fields %}
+          {% if field.name not in form.STORAGE_FIELDS %}
+            {% include "backoffice/includes/_field.html" with field=field wrapper_class="mb-3" %}
+          {% endif %}
+        {% endfor %}
+        {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+        <fieldset id="storage-fields" class="border rounded p-3 mb-3">
+          <legend class="h6">{% trans "Storage inquiry data" %}</legend>
+          {% for name in form.STORAGE_FIELDS %}
+            {% include "backoffice/includes/_field.html" with field=form|field_named:name wrapper_class="mb-3" %}
+          {% endfor %}
+          <div class="form-text">{% trans "Optional at creation; contact, permit and length are required before the quote is sent." %}</div>
+        </fieldset>
+        <button type="submit" class="btn btn-primary">{% trans "Create case" %}</button>
+        <a class="btn btn-outline-secondary" href="{% url 'backoffice:case-list' %}">{% trans "Cancel" %}</a>
+      </form>
+      <script>
+        (function () {
+          var typeField = document.getElementById("id_case_type");
+          var box = document.getElementById("storage-fields");
+          if (!typeField || !box) { return; }
+          function sync() {
+            box.style.display = typeField.value === "STORAGE" ? "" : "none";
+          }
+          typeField.addEventListener("change", sync);
+          sync();
+        })();
+      </script>
+    </div>
+  </div>
+{% endblock %}

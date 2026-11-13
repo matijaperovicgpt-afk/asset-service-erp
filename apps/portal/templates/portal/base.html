@@ -1,0 +1,62 @@
+{% load i18n static %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
+  <link href="{% static 'vendor/bootstrap.min.css' %}" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+</head>
+{% comment %} hx-boost: submits and navigation happen in the background (no full page
+   reload); the whole body is swapped so the hero block stays in sync. {% endcomment %}
+<body class="luxe" hx-boost="true" data-htmx-error="{% trans "Something went wrong. Please try again." %}">
+  {% comment %} The luxe variant is brand and language switcher only. It carries no
+     Bootstrap-JS control of any kind - no collapse toggler, no dropdown - because
+     this shell ships htmx and app.js and never bootstrap.bundle.min.js, so such
+     a control would render and then do nothing when tapped.
+
+     The header and the hero below it are deliberately adjacent siblings, with
+     nothing between them. The luxe header lies transparent over a hero where a page
+     has one and sits on solid ink where it does not, and the stylesheet tells those
+     two cases apart by that adjacency. Insert anything here and every hero page
+     grows an ink bar above its video. {% endcomment %}
+  {% comment %} First tab stop on every page, invisible until focused. The header
+     alone puts up to ten stops in front of <main>; this is the way past them.
+     It sits before the header, not inside the include, because the include is
+     also the thing being skipped. {% endcomment %}
+  <a class="skip-link" href="#main" hx-boost="false">{% trans "Skip to main content" %}</a>
+  {% include "includes/brand_header.html" with variant="luxe" %}
+  {% block hero %}{% endblock %}
+  {% comment %} id="main" is a target, never a source: no hx-target/hx-select here on
+     purpose. {% block hero %} sits outside <main>, so scoping the swap to #main would
+     leave the report page's hero standing over the thanks page. The whole
+     body is swapped instead - see the note above <body>. The id earns its keep for
+     app.js, whose error toast appends to #main or falls back to <body>; without it
+     a failed request drops its toast below the footer. {% endcomment %}
+  <main id="main" tabindex="-1" class="container pb-4 pt-4">
+    {% comment %} Flash messages, should any portal view ever set one. No dismiss
+       button: the portal does not load bootstrap's JS bundle, so a close
+       control would be dead. {% endcomment %}
+    {% if messages %}
+      <div class="flash-stack" aria-live="polite">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} shadow" role="alert" data-flash>
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="app-footer">
+    <div class="container">
+      {% comment %} Same SITE_NAME as the header wordmark, so the public page never
+         names itself two different things top and bottom. {% endcomment %}
+      {{ SITE_NAME }} - {% trans "Client portal" %}
+    </div>
+  </footer>
+  <script src="{% static 'vendor/htmx.min.js' %}"></script>
+  <script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

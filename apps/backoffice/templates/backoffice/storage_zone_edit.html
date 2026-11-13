@@ -1,0 +1,89 @@
+{% extends "backoffice/base.html" %}
+{% load i18n l10n static %}
+
+{% block title %}{% if zone %}{{ zone.name }}{% else %}{% trans "New yard" %}{% endif %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:home' %}">{% trans "Home" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-storage' %}">{% trans "Storage" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:storage-layout' %}">{% trans "Storage layout" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% if zone %}{{ zone.name }}{% else %}{% trans "New yard" %}{% endif %}</li>
+    </ol>
+  </nav>
+  <div class="page-heading mb-3 d-flex align-items-center gap-2 flex-wrap">
+    <h1 class="h3 mb-0">{% if zone %}{% blocktrans with name=zone.name %}Yard: {{ name }}{% endblocktrans %}{% else %}{% trans "New yard" %}{% endif %}</h1>
+    <a class="btn btn-sm btn-outline-secondary ms-auto" href="{% url 'backoffice:storage-layout' %}">{% trans "Yard plan" %}</a>
+  </div>
+
+  <p class="text-muted">
+    {% trans "Enter the yard's width and length in metres and upload a photo or drawing of it - an aerial view cropped to that rectangle works best. The picture is stretched to those dimensions and shown under the plan, and assets are placed over it. The picture is only a backdrop: the numbers are what the plan measures." %}
+  </p>
+
+  {# hx-boost="false": a plain POST. The form carries an image upload, and a boosted submit would hide a refused save behind the generic htmx toast. #}
+  <form method="post" enctype="multipart/form-data" id="zone-form" novalidate hx-boost="false">
+    {% csrf_token %}
+    {% include "backoffice/includes/_form_errors.html" with form=form %}
+    <div class="row g-4">
+      <div class="col-lg-4">
+        <div class="card mb-4">
+          <div class="card-header">{% trans "Yard" %}</div>
+          <div class="card-body">
+            {% include "backoffice/includes/_field.html" with field=form.name %}
+            <div class="row g-2">
+              <div class="col-12 col-sm-6">{% include "backoffice/includes/_field.html" with field=form.width_m %}</div>
+              <div class="col-12 col-sm-6">{% include "backoffice/includes/_field.html" with field=form.length_m %}</div>
+            </div>
+            {% include "backoffice/includes/_field.html" with field=form.clearance_m %}
+            {% include "backoffice/includes/_field.html" with field=form.plan_image %}
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-sm-6">{% include "backoffice/includes/_field.html" with field=form.sort_order %}</div>
+              <div class="col-12 col-sm-6">{% include "backoffice/includes/_field.html" with field=form.is_active %}</div>
+            </div>
+            <button type="submit" class="btn btn-primary mt-2" id="zone-save">{% trans "Save yard" %}</button>
+          </div>
+        </div>
+        {% if zone %}
+          <p class="small text-muted">
+            {% url 'admin:storage_storagezone_change' zone.pk as admin_url %}
+            {% blocktrans with url=admin_url %}Reserved ground (lanes, sheds, crane tracks) is kept in the <a href="{{ url }}">administration</a>.{% endblocktrans %}
+          </p>
+        {% endif %}
+      </div>
+
+      <div class="col-lg-8">
+        <div class="card mb-4">
+          <div class="card-header">{% trans "Preview" %}</div>
+          <div class="card-body">
+            <svg class="yard-svg yard-editor" id="yard-editor-svg" xmlns="http://www.w3.org/2000/svg"
+                 viewBox="0 0 {{ form.width_m.value|default:'40'|unlocalize }} {{ form.length_m.value|default:'25'|unlocalize }}"
+                 preserveAspectRatio="xMidYMid meet" role="img"
+                 aria-label="{% trans 'Yard preview' %}">
+              <defs>
+                <pattern id="editor-grid" width="5" height="5" patternUnits="userSpaceOnUse">
+                  <path d="M5 0 H0 V5" fill="none" stroke="#c9d3db" stroke-width="0.05"/>
+                </pattern>
+                <pattern id="editor-hatch" width="1.2" height="1.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                  <rect width="1.2" height="1.2" fill="#e4e9ed"/>
+                  <line x1="0" y1="0" x2="0" y2="1.2" stroke="#8e9aa4" stroke-width="0.35"/>
+                </pattern>
+              </defs>
+              <rect id="editor-box" x="0" y="0" width="0" height="0" fill="#f4f8fb" stroke="#7a8b99" stroke-width="0.1"/>
+              <image id="editor-plan-image" x="0" y="0" width="0" height="0" preserveAspectRatio="none" opacity="0.65"/>
+              <rect id="editor-grid-rect" x="0" y="0" width="0" height="0" fill="url(#editor-grid)"/>
+              <g id="editor-obstacles"></g>
+              <g id="editor-assets"></g>
+              <rect id="editor-exit" x="0" y="0" width="0" height="0.6" fill="#274b63"/>
+              <text id="editor-exit-label" x="0" y="0.45" font-size="0.5" fill="#fff" text-anchor="end" dx="-0.3">{% trans "EXIT / IZLAZ" %}</text>
+            </svg>
+            <p class="small text-muted mt-2 mb-0">{% trans "The exit edge is the top of the plan (y = 0). A newly chosen picture is previewed here before you save. Parked assets are moved from the yard plan, not here." %}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  {{ editor_data|json_script:"yard-editor-data" }}
+  <script src="{% static 'js/yard-editor.js' %}"></script>
+{% endblock %}

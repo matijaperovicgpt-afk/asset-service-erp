@@ -1,0 +1,62 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ client.name }} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:client-list' %}">{% trans "Clients" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ client.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="page-heading mb-4 d-flex align-items-center gap-2">
+    <h1 class="h3 mb-0">{{ client.name }}</h1>
+    {% if client.is_company %}<span class="badge text-bg-secondary">{% trans "Company" %}</span>{% endif %}
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">{% trans "Client data" %}</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">{% trans "Phone" %}</dt>
+        <dd class="col-sm-9">{{ client.phone|default:"-" }}</dd>
+        <dt class="col-sm-3">{% trans "Email" %}</dt>
+        <dd class="col-sm-9">{{ client.email|default:"-" }}</dd>
+        <dt class="col-sm-3">{% trans "Address" %}</dt>
+        <dd class="col-sm-9">{{ client.address|default:"-" }}</dd>
+        {% if client.notes %}
+          <dt class="col-sm-3">{% trans "Notes" %}</dt>
+          <dd class="col-sm-9">{{ client.notes|linebreaksbr }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  <h2 class="h5 mb-3">{% trans "Assets" %} <span class="badge text-bg-light">{{ assets|length }}</span></h2>
+  {% for asset in assets %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <a class="fw-semibold" href="{% url 'backoffice:asset-detail' asset.pk %}">{{ asset }}</a>
+        <small class="text-muted">
+          {{ asset.asset_type }}{% if asset.length_m %} · {{ asset.length_m }} m{% endif %}
+        </small>
+      </div>
+      <div class="card-body">
+        {% include "backoffice/includes/_case_list_compact.html" with cases=asset.cases.all %}
+      </div>
+    </div>
+  {% empty %}
+    <p class="text-muted">{% trans "No assets recorded for this client." %}</p>
+  {% endfor %}
+
+  {% if loose_cases %}
+    <div class="card mb-4 mt-4">
+      <div class="card-header">{% trans "Works not linked to an asset" %}</div>
+      <div class="card-body">
+        {% include "backoffice/includes/_case_list_compact.html" with cases=loose_cases %}
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

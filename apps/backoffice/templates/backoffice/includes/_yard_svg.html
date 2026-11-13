@@ -1,0 +1,83 @@
+{% comment %}One storage zone drawn to scale (WNT-05/WNT-09).
+
+    {% include "backoffice/includes/_yard_svg.html" with zv=zv %}
+    {% include "backoffice/includes/_yard_svg.html" with zv=zv picking=True %}
+
+Shared by the yard plan and the pre-contract space check, which used to
+carry two near-identical copies of this markup. What it draws, bottom up:
+
+* the ground: the uploaded site plan, if any, then the 5 m grid;
+* the exit edge and the reserved ground (obstacles);
+* each asset as its footprint rectangle (the geometry every rule judges,
+  drawn faint) with a outline shape over it, bow towards the exit - or
+  towards the left edge when broadside.
+
+Every geometry attribute is machine-read: unlocalize / floatformat:"2u"
+on anything the template computes, and a pre-formatted string (asset.d)
+from the view for the outline path data.
+{% endcomment %}
+{% load i18n l10n %}
+<svg class="yard-svg{% if picking %} yard-picking{% endif %}" viewBox="0 0 {{ zv.zone.width_m|unlocalize }} {{ zv.zone.length_m|unlocalize }}"
+     preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"
+     role="application"
+     aria-label="{% blocktrans with name=zv.zone.name %}Yard plan for {{ name }}{% endblocktrans %}"
+     data-zone-id="{{ zv.zone.pk|unlocalize }}"
+     data-width="{{ zv.zone.width_m|unlocalize }}" data-length="{{ zv.zone.length_m|unlocalize }}">
+  <defs>
+    <pattern id="grid-{{ zv.zone.pk|unlocalize }}" width="5" height="5" patternUnits="userSpaceOnUse">
+      <path d="M5 0 H0 V5" fill="none" stroke="#c9d3db" stroke-width="0.05"/>
+    </pattern>
+    <pattern id="hatch-{{ zv.zone.pk|unlocalize }}" width="1.2" height="1.2"
+             patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="1.2" height="1.2" fill="#e4e9ed"/>
+      <line x1="0" y1="0" x2="0" y2="1.2" stroke="#8e9aa4" stroke-width="0.35"/>
+    </pattern>
+  </defs>
+  <rect class="yard-box" x="0" y="0" width="{{ zv.zone.width_m|unlocalize }}" height="{{ zv.zone.length_m|unlocalize }}"
+        fill="#f4f8fb" stroke="#7a8b99" stroke-width="0.1"/>
+  <g class="yard-ground">
+    {% if zv.plan_image_url %}
+      <image class="yard-plan-image" href="{{ zv.plan_image_url }}" x="0" y="0"
+             width="{{ zv.zone.width_m|unlocalize }}" height="{{ zv.zone.length_m|unlocalize }}"
+             preserveAspectRatio="none" opacity="0.65"/>
+    {% endif %}
+    <rect x="0" y="0" width="{{ zv.zone.width_m|unlocalize }}" height="{{ zv.zone.length_m|unlocalize }}"
+          fill="url(#grid-{{ zv.zone.pk|unlocalize }})"/>
+  </g>
+  <!-- exit edge (y = 0) -->
+  <rect x="0" y="0" width="{{ zv.zone.width_m|unlocalize }}" height="0.6" fill="#274b63"/>
+  <text x="{{ zv.zone.width_m|floatformat:"2u" }}" y="0.45" font-size="0.5" fill="#fff"
+        text-anchor="end" dx="-0.3">{% trans "EXIT / IZLAZ" %}</text>
+  {% for o in zv.obstacles %}
+    <g class="yard-obstacle">
+      <title>{{ o.name }} - {{ o.kind }}</title>
+      <rect x="{{ o.x|floatformat:"2u" }}" y="{{ o.y|floatformat:"2u" }}"
+            width="{{ o.w|floatformat:"2u" }}" height="{{ o.h|floatformat:"2u" }}"
+            fill="url(#hatch-{{ zv.zone.pk|unlocalize }})"
+            stroke="#5d6a74" stroke-width="0.12" stroke-dasharray="0.6 0.4"/>
+      <text x="{{ o.cx|floatformat:"2u" }}" y="{{ o.cy|floatformat:"2u" }}"
+            font-size="{{ o.label_size|floatformat:"2u" }}" fill="#3c4750"
+            text-anchor="middle" dominant-baseline="central">{{ o.name }}</text>
+    </g>
+  {% endfor %}
+  {% for asset in zv.assets %}
+    <g class="yard-asset{% if asset.is_current %} is-current{% endif %}">
+      <title>{% blocktrans with case=asset.case.pk length=asset.length %}Case #{{ case }} - {{ length }} m{% endblocktrans %}{% if asset.exit_date %} - {{ asset.exit_date|date:"d.m.Y" }}{% endif %}</title>
+      {# The footprint is what the rules judge; it stays visible, faintly, under the outline. #}
+      <rect class="yard-footprint" x="{{ asset.x|floatformat:"2u" }}" y="{{ asset.y|floatformat:"2u" }}"
+            width="{{ asset.w|floatformat:"2u" }}" height="{{ asset.h|floatformat:"2u" }}"
+            fill="{{ asset.fill }}" fill-opacity="0.16"
+            stroke="{% if asset.is_current %}#0d6efd{% else %}{{ asset.fill }}{% endif %}"
+            stroke-width="{% if asset.is_current %}0.3{% else %}0.06{% endif %}" stroke-dasharray="0.5 0.3"/>
+      <path class="yard-outline" d="{{ asset.d }}" fill="{{ asset.fill }}" fill-opacity="0.92"
+            stroke="{% if asset.is_current %}#0d6efd{% else %}#22303a{% endif %}"
+            stroke-width="{% if asset.is_current %}0.3{% else %}0.12{% endif %}" stroke-linejoin="round"/>
+      <text x="{{ asset.cx|floatformat:"2u" }}" y="{{ asset.cy|floatformat:"2u" }}"
+            font-size="{{ asset.label_size|floatformat:"2u" }}" fill="{{ asset.ink }}"
+            text-anchor="middle" dominant-baseline="central">
+        <tspan x="{{ asset.cx|floatformat:"2u" }}" y="{{ asset.label_y1|floatformat:"2u" }}">#{{ asset.case.pk }} · {{ asset.length|floatformat:"-2" }}m</tspan>
+        <tspan x="{{ asset.cx|floatformat:"2u" }}" y="{{ asset.label_y2|floatformat:"2u" }}">{{ asset.exit_label }}</tspan>
+      </text>
+    </g>
+  {% endfor %}
+</svg>

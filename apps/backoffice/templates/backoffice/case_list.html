@@ -1,0 +1,138 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ section_title }} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <div class="page-heading mb-4 d-flex align-items-center gap-2 flex-wrap">
+    <h1 class="h3 mb-0">{{ section_title }}</h1>
+    {% if page_obj %}<span class="badge text-bg-light">{{ page_obj.paginator.count }}</span>{% endif %}
+    {% if section == "STORAGE" %}
+      <a class="btn btn-primary ms-auto" href="{% url 'backoffice:case-create' %}?case_type=STORAGE">{% trans "New inquiry" %}</a>
+      <a class="btn btn-outline-secondary" href="{% url 'backoffice:storage-layout' %}">{% trans "Storage layout" %}</a>
+      <a class="btn btn-outline-secondary" href="{% url 'backoffice:section-storage-pricing' %}">{% trans "Price list" %}</a>
+    {% elif section == "SERVICE" %}
+      <a class="btn btn-primary ms-auto" href="{% url 'backoffice:case-create' %}?case_type=SERVICE">{% trans "New case" %}</a>
+      <a class="btn btn-outline-secondary" href="{% url 'backoffice:section-service-pricing' %}">{% trans "Price list" %}</a>
+    {% elif section == "TRANSPORT" %}
+      <a class="btn btn-primary ms-auto" href="{% url 'backoffice:case-create' %}?case_type=TRANSPORT">{% trans "New inquiry" %}</a>
+      <a class="btn btn-outline-secondary" href="{% url 'backoffice:section-transport-pricing' %}">{% trans "Price list" %}</a>
+    {% else %}
+      <a class="btn btn-primary ms-auto" href="{% url 'backoffice:case-create' %}">{% trans "New case" %}</a>
+    {% endif %}
+  </div>
+
+  <form method="get" class="row g-2 mb-4">
+    <div class="col-12 col-sm-auto">
+      <select name="status" class="form-select">
+        <option value="">{% trans "All statuses" %}</option>
+        {% regroup statuses by get_case_type_display as status_groups %}
+        {% for group in status_groups %}
+          <optgroup label="{{ group.grouper }}">
+            {% for status in group.list %}
+              <option value="{{ status.pk }}" {% if status.pk|stringformat:"s" == current_status %}selected{% endif %}>
+                {{ status.name }}
+              </option>
+            {% endfor %}
+          </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+    {% if not section %}
+      <div class="col-12 col-sm-auto">
+        <select name="case_type" class="form-select">
+          <option value="">{% trans "All types" %}</option>
+          {% for value, label in case_type_choices %}
+            <option value="{{ value }}" {% if value == current_case_type %}selected{% endif %}>
+              {{ label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endif %}
+    <div class="col-12 col-sm-auto">
+      <button type="submit" class="btn btn-primary">{% trans "Filter" %}</button>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="table-responsive">
+    <table class="table table-hover table-stack-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th class="ps-3">{% trans "ID" %}</th>
+          {% if not section %}<th>{% trans "Type" %}</th>{% endif %}
+          <th>{% trans "Client" %}</th>
+          <th>{% trans "Status" %}</th>
+          {% if section == "TRANSPORT" %}
+            <th>{% trans "Mode" %}</th>
+            <th>{% trans "Preferred date" %}</th>
+          {% elif section == "STORAGE" %}
+            <th>{% trans "Asset length (m)" %}</th>
+            <th>{% trans "Documentation" %}</th>
+            <th>{% trans "Price (price list)" %}</th>
+          {% endif %}
+          <th>{% trans "Technician" %}</th>
+          <th class="pe-3">{% trans "Reported at" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for case in cases %}
+          <tr>
+            <td class="ps-3" data-label="{% trans "ID" %}"><a class="fw-semibold" href="{% url 'backoffice:case-detail' case.pk %}">#{{ case.id }}</a></td>
+            {% if not section %}<td data-label="{% trans "Type" %}"><span class="badge text-bg-secondary">{{ case.get_case_type_display }}</span></td>{% endif %}
+            <td data-label="{% trans "Client" %}">{% if case.client %}{{ case.client }}{% else %}{{ case.raw_contact_name }}{% endif %}</td>
+            <td data-label="{% trans "Status" %}"><span class="badge {% if case.status.is_terminal %}text-bg-success{% else %}text-bg-primary{% endif %}">{{ case.status.name }}</span></td>
+            {% if section == "TRANSPORT" %}
+              <td data-label="{% trans "Mode" %}">
+                {% if case.transport_order %}{{ case.transport_order.get_mode_display }}{% else %}-{% endif %}
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'backoffice:transport-intake' case.pk %}">{% trans "Inquiry" %}</a>
+              </td>
+              <td data-label="{% trans "Preferred date" %}">{% if case.transport_order.preferred_date %}{{ case.transport_order.preferred_date|date:"d.m.Y" }}{% else %}-{% endif %}</td>
+            {% elif section == "STORAGE" %}
+              <td data-label="{% trans "Asset length (m)" %}">
+                {% if case.storage_agreement.asset_length_m %}{{ case.storage_agreement.asset_length_m }}{% endif %}
+                {% if not case.client or not case.storage_agreement.ownership %}
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'backoffice:storage-intake' case.pk %}">{% trans "Database entry" %}</a>
+                {% endif %}
+              </td>
+              <td data-label="{% trans "Documentation" %}">
+                {% if case.storage_docs_complete %}
+                  <span class="badge text-bg-success">{% trans "complete" %}</span>
+                {% else %}
+                  <span class="badge text-bg-warning">{% trans "incomplete" %}</span>
+                {% endif %}
+              </td>
+              <td data-label="{% trans "Price (price list)" %}">{% if case.storage_price is not None %}{{ case.storage_price }} €{% else %}-{% endif %}</td>
+            {% endif %}
+            <td data-label="{% trans "Technician" %}">{{ case.assigned_technician|default:"-" }}</td>
+            <td class="pe-3 text-muted" data-label="{% trans "Reported at" %}">{{ case.reported_at|date:"d.m.Y H:i" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="text-muted p-3">{% trans "No cases found." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {% if is_paginated %}
+    <nav class="mt-4">
+      <ul class="pagination">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ current_status }}&case_type={{ current_case_type }}">{% trans "Previous" %}</a>
+          </li>
+        {% endif %}
+        <li class="page-item disabled">
+          <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        </li>
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ current_status }}&case_type={{ current_case_type }}">{% trans "Next" %}</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+{% endblock %}

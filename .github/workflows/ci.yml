@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_NAME: erp
+      DB_USER: erp
+      DB_PASSWORD: erp
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_DATABASE: erp
+          MYSQL_USER: erp
+          MYSQL_PASSWORD: erp
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system packages (mysqlclient build, gettext)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-libmysqlclient-dev pkg-config build-essential gettext
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Grant test-database rights
+        # Mirrors docker/mysql-init.sql: manage.py test creates
+        # test_erp, which the app user must own.
+        run: |
+          mysql -h127.0.0.1 -uroot -proot -e "GRANT ALL PRIVILEGES ON \`test_erp\`.* TO 'erp'@'%'; FLUSH PRIVILEGES;"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Migrations are committed
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Tests
+        run: python manage.py test

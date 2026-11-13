@@ -1,0 +1,18 @@
+Django==5.2.16
+django-htmx==1.29.0
+mysqlclient==2.2.8
+django-environ==0.14.0
+django-ratelimit==4.1.0
+Pillow==12.3.0
+gunicorn==26.0.0
+whitenoise==6.12.0
+# Background jobs (NTF-05). Optional at runtime: with REDIS_URL unset the
+# tasks run inline and no broker is contacted, but the package is always
+# imported (config/__init__.py), so it is a hard dependency. The [redis]
+# extra also provides the client Django's built-in RedisCache needs --
+# deliberately NOT django-redis, which would change which backend
+# django-environ's cache_url resolves to.
+celery[redis]==5.6.3
+# Optional error reporting -- install and set SENTRY_DSN to enable
+# (see config/settings/prod.py):
+# sentry-sdk[django]

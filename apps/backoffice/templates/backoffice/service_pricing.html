@@ -1,0 +1,116 @@
+{% extends "backoffice/base.html" %}
+{% load i18n form_tags %}
+
+{% block title %}{% trans "Price list" %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:home' %}">{% trans "Home" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-service' %}">{% trans "Service" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Price list" %}</li>
+    </ol>
+  </nav>
+  <div class="page-heading mb-4 d-flex align-items-center gap-2">
+    <h1 class="h3 mb-0">{% trans "Service price list" %}</h1>
+  </div>
+
+  <p class="text-muted">
+    {% trans "Official service price list valid from 01.10.2025. Prices are in EUR and exclude VAT (PDV). Consumables (oils, filters, belts, spark plugs) are not included in service prices; repairs are billed per the manufacturer's nomenclature. Selected items pre-fill the quote amount on a service case - the final amount is always a staff decision." %}
+  </p>
+  {% if not can_edit %}
+    <p class="text-muted small">{% trans "Only a manager or director may edit the price list." %}</p>
+  {% endif %}
+
+  {% for group_label, item_rows in item_groups %}
+    <div class="card mb-4">
+      <div class="card-header">{{ group_label }}</div>
+      <div class="table-responsive">
+        <table class="table table-edit table-stack-md align-middle mb-0">
+        <thead>
+          <tr>
+            <th class="ps-3">{% trans "Name" %}</th>
+            <th>{% trans "Engine category" %}</th>
+            <th>{% trans "Price" %} (€)</th>
+            <th>{% trans "Unit" %}</th>
+            <th>{% trans "Active" %}</th>
+            {% if can_edit %}<th class="pe-3">{% trans "Actions" %}</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for item, item_form in item_rows %}
+            <tr>
+              {% if can_edit %}
+                <td class="ps-3 cell-wide" data-label="{% trans "Name" %}">
+                  {% include "backoffice/includes/_field.html" with field=item_form.name label_sr_only=True wrapper_class="mb-0" %}
+                  <div class="d-none">{{ item_form.category }}{{ item_form.service_kind }}{{ item_form.sort_order }}</div>
+                </td>
+                <td class="cell-mid" data-label="{% trans "Engine category" %}">{% include "backoffice/includes/_field.html" with field=item_form.equipment_category label_sr_only=True wrapper_class="mb-0" %}</td>
+                <td class="cell-num" data-label="{% trans "Price" %} (€)">{% include "backoffice/includes/_field.html" with field=item_form.price label_sr_only=True wrapper_class="mb-0" %}</td>
+                <td class="cell-num" data-label="{% trans "Unit" %}">{% include "backoffice/includes/_field.html" with field=item_form.unit label_sr_only=True wrapper_class="mb-0" %}</td>
+                <td data-label="{% trans "Active" %}">{% include "backoffice/includes/_field.html" with field=item_form.is_active label_sr_only=True wrapper_class="mb-0" %}</td>
+                <td class="pe-3" data-label="{% trans "Actions" %}">
+                  <div class="row-actions">
+                    <button type="submit" class="btn btn-sm btn-primary"
+                            form="item-form-{{ item.pk }}">{% trans "Save" %}</button>
+                    <form method="post" action="{% url 'backoffice:pricing-item-delete' item.pk %}" class="d-inline"
+                          onsubmit="return confirm('{% trans "Delete this price item?" %}');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Delete" %}</button>
+                    </form>
+                  </div>
+                  <form method="post" action="{% url 'backoffice:pricing-item-edit' item.pk %}" id="item-form-{{ item.pk }}">{% csrf_token %}</form>
+                </td>
+              {% else %}
+                <td class="ps-3" data-label="{% trans "Name" %}">{{ item.name }}</td>
+                <td data-label="{% trans "Engine category" %}">{{ item.equipment_category|default:"" }}</td>
+                <td data-label="{% trans "Price" %} (€)">{{ item.price }}</td>
+                <td data-label="{% trans "Unit" %}">{{ item.get_unit_display }}</td>
+                <td data-label="{% trans "Active" %}">{% if item.is_active %}<span class="badge text-bg-success">{% trans "yes" %}</span>{% else %}<span class="badge text-bg-secondary">{% trans "no" %}</span>{% endif %}</td>
+              {% endif %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="text-muted p-3">{% trans "No price items in this category yet." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  {% endfor %}
+
+  {% if can_edit %}
+    <div class="card">
+      <div class="card-header">{% trans "Add price item" %}</div>
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-2">
+            {% include "backoffice/includes/_field.html" with field=add_form.category wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-3">
+            {% include "backoffice/includes/_field.html" with field=add_form.name wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-2">
+            {% include "backoffice/includes/_field.html" with field=add_form.equipment_category wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-1">
+            {% include "backoffice/includes/_field.html" with field=add_form.service_kind wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-1">
+            {% include "backoffice/includes/_field.html" with field=add_form.price wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-1">
+            {% include "backoffice/includes/_field.html" with field=add_form.unit wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-1">
+            {% include "backoffice/includes/_field.html" with field=add_form.sort_order wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-1">
+                          {% include "backoffice/includes/_field.html" with field=add_form.is_active wrapper_class="mb-0" %}
+            <button type="submit" class="btn btn-sm btn-primary" form="item-form-new">{% trans "Add" %}</button>
+            <form method="post" action="{% url 'backoffice:pricing-item-add' %}" id="item-form-new">{% csrf_token %}</form>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

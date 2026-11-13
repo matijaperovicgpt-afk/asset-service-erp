@@ -1,0 +1,114 @@
+{% extends "backoffice/base.html" %}
+{% load i18n form_tags %}
+
+{% block title %}{% trans "Price list" %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:home' %}">{% trans "Home" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-storage' %}">{% trans "Storage" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Price list" %}</li>
+    </ol>
+  </nav>
+  <div class="page-heading mb-4 d-flex align-items-center gap-2">
+    <h1 class="h3 mb-0">{% trans "Storage price list" %}</h1>
+  </div>
+
+  <p class="text-muted">
+    {% trans "Storage price bands by asset length and accommodation. Prices are in EUR and exclude VAT. Describe here what the price includes (handling, transport to the yard, cleaning, preservation, ...)." %}
+  </p>
+  <p class="text-muted">
+    {% trans "A band covers lengths from the lower bound (inclusive) up to the upper bound (exclusive); an empty upper bound means the band is open-ended. An empty price means the combination is not offered. The price matching the agreement's accommodation and term prefills the quote on the case page (staff can adjust it before sending)." %}
+  </p>
+  {% if not can_edit %}
+    <p class="text-muted small">{% trans "Only a manager or director may edit the price list." %}</p>
+  {% endif %}
+
+  {% for group_label, band_rows in band_groups %}
+    <div class="card mb-4">
+      <div class="card-header">{{ group_label }}</div>
+      <div class="table-responsive">
+        <table class="table table-edit table-stack-md align-middle mb-0">
+        <thead>
+          <tr>
+            <th class="ps-3">{% trans "Length from (m)" %}</th>
+            <th>{% trans "Length to (m)" %}</th>
+            <th>{% trans "Daily" %} (€)</th>
+            <th>{% trans "Monthly" %} (€)</th>
+            <th>{% trans "Seasonal" %} (€)</th>
+            {% if can_edit %}<th class="pe-3">{% trans "Actions" %}</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for band, band_form in band_rows %}
+            <tr>
+              {% if can_edit %}
+                <td class="ps-3 cell-num" data-label="{% trans "Length from (m)" %}">
+                  {% include "backoffice/includes/_field.html" with field=band_form.length_min_m label_sr_only=True wrapper_class="mb-0" %}
+                  <div class="d-none">{{ band_form.accommodation }}</div>
+                </td>
+                <td class="cell-num" data-label="{% trans "Length to (m)" %}">{% include "backoffice/includes/_field.html" with field=band_form.length_max_m label_sr_only=True wrapper_class="mb-0" %}</td>
+                <td class="cell-num" data-label="{% trans "Daily" %} (€)">{% include "backoffice/includes/_field.html" with field=band_form.daily_price label_sr_only=True wrapper_class="mb-0" %}</td>
+                <td class="cell-num" data-label="{% trans "Monthly" %} (€)">{% include "backoffice/includes/_field.html" with field=band_form.monthly_price label_sr_only=True wrapper_class="mb-0" %}</td>
+                <td class="cell-num" data-label="{% trans "Seasonal" %} (€)">{% include "backoffice/includes/_field.html" with field=band_form.seasonal_price label_sr_only=True wrapper_class="mb-0" %}</td>
+                <td class="pe-3" data-label="{% trans "Actions" %}">
+                  <div class="row-actions">
+                    <button type="submit" class="btn btn-sm btn-primary"
+                            form="band-form-{{ band.pk }}">{% trans "Save" %}</button>
+                    <form method="post" action="{% url 'backoffice:pricing-band-delete' band.pk %}" class="d-inline"
+                          onsubmit="return confirm('{% trans "Delete this price band?" %}');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Delete" %}</button>
+                    </form>
+                  </div>
+                  <form method="post" action="{% url 'backoffice:pricing-band-edit' band.pk %}" id="band-form-{{ band.pk }}">{% csrf_token %}</form>
+                </td>
+              {% else %}
+                <td class="ps-3" data-label="{% trans "Length from (m)" %}">{{ band.length_min_m }}</td>
+                <td data-label="{% trans "Length to (m)" %}">{% if band.length_max_m is not None %}{{ band.length_max_m }}{% else %}<span class="text-muted">∞</span>{% endif %}</td>
+                <td data-label="{% trans "Daily" %} (€)">{% if band.daily_price is not None %}{{ band.daily_price }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                <td data-label="{% trans "Monthly" %} (€)">{% if band.monthly_price is not None %}{{ band.monthly_price }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                <td data-label="{% trans "Seasonal" %} (€)">{% if band.seasonal_price is not None %}{{ band.seasonal_price }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+              {% endif %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="text-muted p-3">{% trans "No price bands defined yet." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  {% endfor %}
+
+  {% if can_edit %}
+    {% comment %}The band fields' model help_text is hidden inside the grid
+       (label_sr_only), so what a blank cell means is said once here. The
+       strings are the fields' own, read off the add form - nothing new to
+       translate.{% endcomment %}
+    <p class="form-text mb-4" id="bands-blank-note">
+      {{ add_form.length_max_m.help_text }} {{ add_form.daily_price.help_text }}
+    </p>
+    <div class="card">
+      <div class="card-header">{% trans "Add band" %}</div>
+      <div class="table-responsive">
+        <table class="table table-edit table-stack-md align-middle mb-0">
+        <tbody>
+          <tr class="table-light">
+            <td class="ps-3 cell-mid">{% include "backoffice/includes/_field.html" with field=add_form.accommodation wrapper_class="mb-0" %}</td>
+            <td class="cell-num">{% include "backoffice/includes/_field.html" with field=add_form.length_min_m wrapper_class="mb-0" %}</td>
+            <td class="cell-num">{% include "backoffice/includes/_field.html" with field=add_form.length_max_m wrapper_class="mb-0" %}</td>
+            <td class="cell-num">{% include "backoffice/includes/_field.html" with field=add_form.daily_price wrapper_class="mb-0" %}</td>
+            <td class="cell-num">{% include "backoffice/includes/_field.html" with field=add_form.monthly_price wrapper_class="mb-0" %}</td>
+            <td class="cell-num">{% include "backoffice/includes/_field.html" with field=add_form.seasonal_price wrapper_class="mb-0" %}</td>
+            <td class="pe-3">
+              <button type="submit" class="btn btn-sm btn-primary" form="band-form-new">{% trans "Add band" %}</button>
+              <form method="post" action="{% url 'backoffice:pricing-band-add' %}" id="band-form-new">{% csrf_token %}</form>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

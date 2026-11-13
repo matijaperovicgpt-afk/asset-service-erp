@@ -1,0 +1,94 @@
+{% load i18n %}
+{% comment %} Reusable media gallery for a work object. Expects ``gallery`` shaped by
+   attachments.services.group_attachments_by_kind: .photos / .videos /
+   .documents (lists of Attachment) and .total. {% endcomment %}
+<div class="media-gallery">
+  {% if gallery.total %}
+    {% if gallery.photos %}
+      <h6 class="text-muted small text-uppercase mb-2">
+        {% trans "Photos" %} <span class="badge text-bg-light">{{ gallery.photos|length }}</span>
+      </h6>
+      <div class="row g-2 mb-3">
+        {% for a in gallery.photos %}
+          <div class="col-6 col-md-3 col-lg-2">
+            <a href="{{ a.file.url }}" hx-boost="false" target="_blank" rel="noopener"
+               title="{{ a.original_name|default:a.file.name }}">
+              {# Grid shows the lightweight thumbnail; the link opens the full original. #}
+              <img src="{% if a.thumbnail %}{{ a.thumbnail.url }}{% else %}{{ a.file.url }}{% endif %}"
+                   class="img-fluid rounded border" loading="lazy"
+                   alt="{{ a.original_name|default:a.get_kind_display }}"
+                   style="aspect-ratio:1;object-fit:cover;width:100%;">
+            </a>
+            <div class="small text-muted text-truncate">{{ a.get_stage_display }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if gallery.videos %}
+      <h6 class="text-muted small text-uppercase mb-2">
+        {% trans "Videos" %} <span class="badge text-bg-light">{{ gallery.videos|length }}</span>
+      </h6>
+      <div class="row g-2 mb-3">
+        {% for a in gallery.videos %}
+          <div class="col-12 col-md-6 col-lg-4">
+            {% comment %} preload="none" only WITH a poster: without one it renders a
+               black rectangle. With one, the browser stops range-requesting the moov
+               atom of a file up to 50 MB per tile just to draw a first frame.
+               NOTE: hash-comments are single-line only in Django's lexer, so a
+               multi-line one leaks verbatim into the page - hence this tag.
+               {% endcomment %}
+            <video class="w-100 rounded border" controls
+                   preload="{% if a.thumbnail %}none{% else %}metadata{% endif %}"
+                   {% if a.thumbnail %}poster="{{ a.thumbnail.url }}"{% endif %}>
+              {% comment %} The derived copy MUST come first: <video> takes the first
+                 source it believes it can decode, so a later entry is never reached.
+                 A .mov is served as video/quicktime, which Chrome and Firefox
+                 refuse whatever H.264 is inside - for those this copy is the
+                 only playable entry. {% endcomment %}
+              {% if a.web_video %}<source src="{{ a.web_video.url }}" type="video/mp4">{% endif %}
+              {% comment %} Deliberately NO type= on the fallback (today's behaviour,
+                 keep it): annotating a .mov as video/quicktime makes Chrome skip it
+                 without trying, turning a degraded tile into a broken one, while
+                 unannotated Safari sniffs it and plays it. {% endcomment %}
+              <source src="{{ a.file.url }}">
+            </video>
+            <div class="small text-muted text-truncate">
+              {{ a.get_stage_display }} &middot; {{ a.original_name|default:a.file.name }}
+              {% if a.web_video %}
+                {% comment %} INV-14: the player is showing a derived copy, so keep
+                   the untouched evidentiary bytes one click away. Only shown when a
+                   copy exists - otherwise the player already IS the original.
+                   hx-boost="false" is mandatory: the backoffice <body> sets
+                   hx-boost="true" and htmx would swap video bytes into the main
+                   region. download= restores the client's name at download time;
+                   POR-04 governs what is stored, not what is served. {% endcomment %}
+                &middot;
+                <a href="{{ a.file.url }}" hx-boost="false" target="_blank" rel="noopener"
+                   download="{{ a.original_name|default:a.file.name }}">{% trans "Original" %}</a>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if gallery.documents %}
+      <h6 class="text-muted small text-uppercase mb-2">
+        {% trans "Documents" %} <span class="badge text-bg-light">{{ gallery.documents|length }}</span>
+      </h6>
+      <ul class="list-group list-group-flush mb-0">
+        {% for a in gallery.documents %}
+          <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+            <a href="{{ a.file.url }}" hx-boost="false" target="_blank" rel="noopener">
+              {{ a.original_name|default:a.file.name }}
+            </a>
+            <small class="text-muted">{{ a.get_stage_display }}</small>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% else %}
+    <p class="text-muted small mb-0">{% trans "No attachments." %}</p>
+  {% endif %}
+</div>

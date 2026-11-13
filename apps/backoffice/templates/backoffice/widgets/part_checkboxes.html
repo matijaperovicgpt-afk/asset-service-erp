@@ -1,0 +1,42 @@
+{% load i18n %}{% comment %} SVC-10 parts picker. Same shape as the price-list
+picker: one real Bootstrap .form-check per option so a wrapping label keeps its
+hanging indent, and no form-check-input class on the container (see
+PartCheckboxSelect). The stock figure rides along on every row because it is
+what decides §3.2 against §3.3, and a technician should see it while choosing
+rather than discover it in a refusal.
+
+The filter string comes from option.search, not option.attrs, because a
+template variable cannot address a key with a hyphen in it. {% endcomment %}
+<div class="part-picker">
+  <input type="search" class="form-control form-control-sm mb-2 part-filter"
+         placeholder="{% trans 'Search the catalogue by code or name...' %}"
+         aria-label="{% trans 'Search the catalogue' %}">
+  <div{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %} class="part-item-list">
+    {% for group, options, index in widget.optgroups %}{% for option in options %}
+    <div class="form-check part-item-row" data-search="{{ option.search }}">
+      {% include "django/forms/widgets/input.html" with widget=option %}
+      <label class="form-check-label" for="{{ option.attrs.id }}">
+        <span class="part-item-code">{{ option.part.code }}</span>
+        {{ option.part.name }}
+        {% if not option.part.is_consumable %}
+          <span class="badge text-bg-light border">{% trans "not a consumable" %}</span>
+        {% endif %}
+        {% if option.part.stock_qty > 0 %}
+          <span class="badge text-bg-light border">{% blocktrans with n=option.part.stock_qty %}in stock: {{ n }}{% endblocktrans %}</span>
+        {% else %}
+          <span class="badge text-bg-warning">{% trans "out of stock" %}</span>
+        {% endif %}
+      </label>
+      {% if option.quantity_html %}<span class="part-item-qty-wrap">{{ option.quantity_html }}</span>{% endif %}
+    </div>
+    {% endfor %}
+    {% empty %}
+    <p class="text-muted small mb-0">{% trans "The parts catalogue is empty - describe what is needed below, then add the parts to the catalogue so the next diagnosis can select them." %}</p>
+    {% endfor %}
+  </div>
+  {% comment %} The two outcomes named server-side so they are translatable;
+  app.js only chooses between them. {% endcomment %}
+  <p class="small text-muted mb-0 mt-1 part-route-hint"
+     data-shortcut="{% trans 'All selected parts are consumables in stock - this selection allows the direct route to work (SVC-10).' %}"
+     data-quote="{% trans 'Something selected is not a consumable in stock, so the case takes the quote path (SVC-11).' %}"></p>
+</div>

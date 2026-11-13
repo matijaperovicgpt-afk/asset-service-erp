@@ -1,0 +1,6 @@
+{% extends "errors/base_error.html" %}
+{% load i18n %}
+{% block title %}{% trans "Access denied" %}{% endblock %}
+{% block code %}403{% endblock %}
+{% block heading %}{% trans "Access denied" %}{% endblock %}
+{% block message %}{% trans "Your account does not have permission to open this page. If you think it should, ask a manager." %}{% endblock %}

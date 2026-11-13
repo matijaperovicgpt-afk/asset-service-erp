@@ -1,0 +1,14 @@
+{% comment %}Every visible field of a form, in declaration order.
+
+    {% include "backoffice/includes/_form_fields.html" with form=form %}
+
+The replacement for a bare {{ form.as_p }}, which wrapped each field in a
+<p> with no Bootstrap classes and rendered its errors as an unstyled
+<ul class="errorlist">. wrapper_class set here reaches _field.html, since
+{% include %} passes the surrounding context down.
+{% endcomment %}
+{% include "backoffice/includes/_form_errors.html" with form=form %}
+{% for field in form.visible_fields %}
+  {% include "backoffice/includes/_field.html" with field=field %}
+{% endfor %}
+{% for field in form.hidden_fields %}{{ field }}{% endfor %}

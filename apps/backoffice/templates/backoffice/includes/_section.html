@@ -1,0 +1,17 @@
+<div class="guide-section{% if secondary %} guide-section-secondary{% endif %}" id="section-{{ anchor }}">
+  <button class="guide-section-toggle" type="button" data-bs-toggle="collapse"
+          data-bs-target="#{{ anchor }}" aria-controls="{{ anchor }}"
+          aria-expanded="{% if open %}true{% else %}false{% endif %}">{{ title }}</button>
+  <div id="{{ anchor }}" class="collapse{% if open %} show{% endif %}">
+    <div class="card mb-4">
+      <div class="card-body">
+        {% comment %}INV-15: one disabled fieldset makes every control in a
+        closed case's section inert - no JavaScript, and announced as
+        disabled rather than discovered by submitting. It wraps the content
+        only: the toggle above is a <button>, and a fieldset around it would
+        stop a closed case being expanded to read at all.{% endcomment %}
+        <fieldset{% if locked %} disabled class="case-locked"{% endif %}>{{ content }}</fieldset>
+      </div>
+    </div>
+  </div>
+</div>

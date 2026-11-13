@@ -1,0 +1,109 @@
+{% load i18n %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+{% comment %}
+SVC-18 (procedure §4.4): printable / Word export of the intake-vs-handover
+difference. Standalone HTML with inline styles only - the same markup is
+served as text/html (print from the browser) and as application/msword
+(?format=doc), which Word opens natively.
+{% endcomment %}
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+<meta charset="utf-8">
+<title>{% blocktrans with id=case.pk %}Handover record - case #{{ id }}{% endblocktrans %}</title>
+<style>
+  body { font-family: "Times New Roman", serif; margin: 2.5cm; color: #000; }
+  h1 { font-size: 16pt; margin-bottom: 0; }
+  h2 { font-size: 13pt; margin: 14pt 0 4pt; border-bottom: 1px solid #000; }
+  p, li, td, th, dd, dt { font-size: 11pt; }
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0; }
+  th, td { border: 1px solid #444; padding: 3pt 6pt; text-align: left; vertical-align: top; }
+  .muted { color: #444; }
+  .sig { margin-top: 28pt; display: table; width: 100%; }
+  .sig div { display: table-cell; width: 50%; padding-right: 24pt; }
+  .sig .line { border-top: 1px solid #000; margin-top: 32pt; padding-top: 3pt; font-size: 10pt; }
+  @media print { .no-print { display: none; } }
+</style>
+</head>
+<body>
+{% if not as_document %}
+  <p class="no-print"><button onclick="window.print()">{% trans "Print" %}</button></p>
+{% endif %}
+
+<h1>{% trans "Handover record" %}</h1>
+<p class="muted">{% blocktrans with id=case.pk %}Case #{{ id }}{% endblocktrans %}
+ - {{ case.get_case_type_display }} - {% now "d.m.Y H:i" %}</p>
+
+<h2>{% trans "Case and client" %}</h2>
+<table>
+  <tr><th>{% trans "Client" %}</th><td>{{ case.client|default:case.raw_contact_name|default:"-" }}</td></tr>
+  <tr><th>{% trans "Asset" %}</th><td>{{ case.asset|default:case.raw_asset_info|default:"-" }}</td></tr>
+  <tr><th>{% trans "Handover record" %}</th><td>#{{ handover.pk }} - {{ handover.created_at|date:"d.m.Y H:i" }}</td></tr>
+</table>
+
+<h2>{% trans "State at intake (from the intake record)" %}</h2>
+{% if comparison.intake_record %}
+  <table>
+    <tr><th>{% trans "Intake record" %}</th><td>#{{ comparison.intake_record.pk }} - {{ comparison.intake_record.created_at|date:"d.m.Y H:i" }}</td></tr>
+    <tr><th>{% trans "Visible damage / issues" %}</th><td>{{ comparison.intake_record.damage_note|default:"-"|linebreaksbr }}</td></tr>
+    <tr><th>{% trans "General condition" %}</th><td>{{ comparison.intake_record.general_condition_note|default:"-"|linebreaksbr }}</td></tr>
+  </table>
+  {% if comparison.items %}
+    <p><strong>{% trans "Equipment and items received with the asset" %}</strong></p>
+    <table>
+      <tr><th>{% trans "Category" %}</th><th>{% trans "Item" %}</th><th>{% trans "Qty" %}</th><th>{% trans "Condition" %}</th></tr>
+      {% for item in comparison.items %}
+        <tr><td>{{ item.category }}</td><td>{{ item.item_name }}</td><td>{{ item.quantity }}</td><td>{{ item.condition_note|default:"-" }}</td></tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+  {% if comparison.amendments %}
+    <p><strong>{% trans "Later-discovered condition (amendments)" %}</strong></p>
+    <ul>{% for amendment in comparison.amendments %}<li>{{ amendment }}</li>{% endfor %}</ul>
+  {% endif %}
+{% else %}
+  <p>{% trans "No intake record found on this case." %}</p>
+{% endif %}
+
+<h2>{% trans "Work performed" %}</h2>
+{% if comparison.work_log or comparison.used_parts %}
+  {% if comparison.work_log %}
+    <table>
+      <tr><th>{% trans "Work done" %}</th><th>{% trans "Hours" %}</th><th>{% trans "Performed by" %}</th><th>{% trans "Date" %}</th></tr>
+      {% for entry in comparison.work_log %}
+        <tr><td>{{ entry.description }}</td><td>{{ entry.hours }}</td><td>{{ entry.performed_by|default:"-" }}</td><td>{{ entry.created_at|date:"d.m.Y" }}</td></tr>
+      {% endfor %}
+    </table>
+    <p><strong>{% trans "Total working time" %}:</strong> {{ comparison.total_hours }} h</p>
+  {% endif %}
+  {% if comparison.used_parts %}
+    <p><strong>{% trans "Parts implemented" %}</strong></p>
+    <ul>{% for used in comparison.used_parts %}<li>{{ used.part }} &times; {{ used.quantity }}</li>{% endfor %}</ul>
+  {% endif %}
+{% else %}
+  <p class="muted">{% trans "No work log recorded on this case." %}</p>
+{% endif %}
+
+<h2>{% trans "State at handover - differences against intake" %}</h2>
+<table>
+  <tr><th>{% trans "Discrepancies" %}</th><td>{{ comparison.discrepancies_note|default:"-"|linebreaksbr }}</td></tr>
+  <tr><th>{% trans "Intake photos" %}</th><td>{{ comparison.intake_photo_count }}</td></tr>
+  <tr><th>{% trans "Handover photos" %}</th><td>{{ comparison.handover_photo_count }}</td></tr>
+</table>
+
+<h2>{% trans "Confirmations" %}</h2>
+<table>
+  <tr>
+    <th>{% trans "Worker signature" %}</th>
+    <td>{% if handover.technician_signed_at %}{{ handover.signed_by_technician|default:"-" }} - {{ handover.technician_signed_at|date:"d.m.Y H:i" }}{% else %}-{% endif %}</td>
+  </tr>
+  <tr>
+    <th>{% trans "Client receipt confirmation" %}</th>
+    <td>{% if handover.signed_at %}{{ handover.received_by_name }} - {{ handover.signed_at|date:"d.m.Y H:i" }}{% else %}-{% endif %}</td>
+  </tr>
+</table>
+
+<div class="sig">
+  <div><div class="line">{% trans "For the service (signature)" %}</div></div>
+  <div><div class="line">{% trans "Client / authorized person (signature)" %}</div></div>
+</div>
+</body>
+</html>

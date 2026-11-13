@@ -1,0 +1,89 @@
+{% load i18n static %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% trans "Sign in" %}{% endblock %}</title>
+  <link href="{% static 'vendor/bootstrap.min.css' %}" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+</head>
+{% comment %}
+  body.admin, deliberately, on a page that now carries a hero.
+
+  This shell used to be brand-heavy, and someone quietened it down because
+  sign-in looked like a different product from the backoffice one click
+  behind it. That was true: the old brand layer was a serif display face on
+  brass, and the page it opened onto was system-ui on grey. Two design
+  languages, one click apart.
+
+  What changed is that there is now only one language. Palette, typeface,
+  spacing step and square corners all hang off this class, so keeping it is
+  precisely what makes the hero safe: the card, the labels, the inputs and
+  the primary button below are the same components the staffer meets on the
+  other side of the login. The hero is a change of WEIGHT between two
+  obviously related pages, not a change of vocabulary. Drop body.admin for
+  a bespoke auth class and the old problem comes straight back.
+
+  Consequence worth knowing: any "no display serif" rule keyed on body.admin
+  also fires here. See the note on .brand-hero__title in login.html.
+{% endcomment %}
+<body class="admin">
+{% comment %} First tab stop on every page, invisible until focused. The header
+   alone puts up to ten stops in front of <main>; this is the way past them.
+   It sits before the header, not inside the include, because the include is
+   also the thing being skipped. {% endcomment %}
+<a class="skip-link" href="#main" hx-boost="false">{% trans "Skip to main content" %}</a>
+{% include "includes/brand_header.html" with variant="auth" %}
+
+{% comment %}
+  The hero slot, mirroring portal/base.html: declared here, filled by one
+  child. Only login.html fills it - the sign-in door is the Tier 1 surface
+  the brand asked for. Password reset, password change and the signed-out
+  notice inherit an empty block on purpose: they are utility pages reached
+  mid-task or from an email, and a five-second video loop is the last thing
+  someone locked out of their account needs.
+
+  It sits OUTSIDE <main> on purpose. See the note on the swap below.
+{% endcomment %}
+{% block hero %}{% endblock %}
+
+{% comment %}
+  id="main" lets a boosted backoffice page swap this login card in when a
+  session expires mid-click (the 302 to login is followed transparently).
+  The backoffice <main> carries hx-select="#main", so what it lifts out of
+  this response is this element and nothing else - which is why the hero
+  must stay outside it. A full-bleed hero band pasted into the middle of
+  a dense case page would be a bug; the card arriving on its own is not.
+{% endcomment %}
+<main id="main" tabindex="-1" class="container py-5 auth-panel">
+  {% comment %}Nothing rendered messages here, so anything the password-reset
+  or login flow flashed - "your password has been changed", a rate-limit
+  refusal - was set and then silently dropped.
+
+  No dismiss button, and none of bootstrap's fade/show classes: this shell
+  loads no JavaScript at all, so a close control would be painted and dead.
+  {% endcomment %}
+  {% if messages %}
+    <div aria-live="polite">
+      {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %}" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      {% comment %}The page's real <h1>. The hero above says something about the
+         company; this says what you are here to do, and it is the heading a
+         screen reader should land on first.{% endcomment %}
+      <h1 class="h5 mb-3">{% block heading %}{% trans "Sign in" %}{% endblock %}</h1>
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</main>
+{% comment %}No scripts on this page, deliberately: it is the door, and every
+   script is something that can break sign-in.{% endcomment %}
+</body>
+</html>

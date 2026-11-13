@@ -1,0 +1,84 @@
+{% extends "backoffice/base.html" %}
+{% load i18n l10n static %}
+
+{% block title %}{% trans "Space check" %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:home' %}">{% trans "Home" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-storage' %}">{% trans "Storage" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Space check" %}</li>
+    </ol>
+  </nav>
+  <div class="page-heading mb-3 d-flex align-items-center gap-2">
+    <h1 class="h3 mb-0">{% trans "Space check (before contracting)" %}</h1>
+    <a class="btn btn-sm btn-outline-secondary ms-auto" href="{% url 'backoffice:storage-layout' %}">{% trans "Yard plan" %}</a>
+  </div>
+
+  <p class="text-muted">
+    {% trans "Before agreeing to take an asset in, check whether it physically fits the yard. Enter its dimensions, then move the outline over an empty spot: green means it fits, red means it overlaps another asset, comes closer than the yard's working clearance, sits on reserved ground, or runs past the edge. Nothing is saved - this is only a what-if check. The final placement (with exit order) is done from the case once the agreement exists." %}
+  </p>
+
+
+  <div class="card mb-4 border-primary">
+    <div class="card-header bg-primary text-white">{% trans "Asset to check" %}</div>
+    <div class="card-body">
+      <form class="row g-3 align-items-end" onsubmit="return false;">
+        <div class="col-auto" style="max-width: 9rem;">
+          <label class="form-label small mb-0" for="fit-length">{% trans "Length (m)" %}</label>
+          <input type="number" step="0.1" min="0.5" class="form-control" id="fit-length"
+                 value="{{ init_length|floatformat:'-2u' }}">
+        </div>
+        <div class="col-auto" style="max-width: 9rem;">
+          <label class="form-label small mb-0" for="fit-width">{% trans "Width (m)" %}</label>
+          <input type="number" step="0.1" min="0.5" class="form-control" id="fit-width"
+                 value="{{ init_width|floatformat:'-2u' }}">
+        </div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-outline-secondary" id="fit-rotate">{% trans "Rotate 90°" %}</button>
+          <span class="small text-muted ms-1" id="fit-orient"
+                data-lengthwise="{% trans 'bow to exit' %}"
+                data-crosswise="{% trans 'broadside' %}">{% trans "bow to exit" %}</span>
+        </div>
+      </form>
+      <div class="form-text mt-2">
+        {% trans "Move the outline over a yard below - it follows the pointer and stays where you leave it, so you can read the result." %}
+      </div>
+    </div>
+  </div>
+
+  <p class="yard-legend small text-muted">
+    <span><i style="background:#440154"></i>{% trans "leaves earlier" %}</span>
+    <span><i style="background:#2a788e"></i>{% trans "mid-season" %}</span>
+    <span><i style="background:#fde725"></i>{% trans "leaves later" %}</span>
+    <span><i style="background:#18702a;opacity:.5"></i>{% trans "the spot fits" %}</span>
+    <span><i style="background:#c62828;opacity:.5"></i>{% trans "the spot does not" %}</span>
+  </p>
+
+  {% for zv in zone_views %}
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ zv.zone.name }}</span>
+        <span class="d-flex align-items-center gap-3">
+          <span class="yard-verdict small" data-verdict-for="{{ zv.zone.pk|unlocalize }}"></span>
+          <small class="text-muted">{{ zv.zone.width_m }} x {{ zv.zone.length_m }} m</small>
+        </span>
+      </div>
+      <div class="card-body">
+        {% include "backoffice/includes/_yard_svg.html" with zv=zv picking=True %}
+        {% if not zv.assets %}
+          <p class="text-muted small mt-2 mb-0">{% trans "No assets placed in this zone yet - the whole area is free." %}</p>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}
+    <p class="text-muted">{% trans "No storage zones defined yet. Add one in the administration." %}</p>
+  {% endfor %}
+
+  {% if zone_views %}
+    {{ yard_data|json_script:"yard-data" }}
+    {{ yard_labels|json_script:"yard-labels" }}
+    <script src="{% static 'js/yard.js' %}"></script>
+  {% endif %}
+{% endblock %}

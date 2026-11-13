@@ -1,0 +1,144 @@
+{% extends "backoffice/base.html" %}
+{% load i18n form_tags %}
+
+{% block title %}{% trans "Parts catalogue" %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:home' %}">{% trans "Home" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-service' %}">{% trans "Service" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Parts catalogue" %}</li>
+    </ol>
+  </nav>
+  <div class="page-heading mb-4 d-flex align-items-center gap-2">
+    <h1 class="h3 mb-0">{% trans "Parts catalogue" %}</h1>
+  </div>
+
+  <p class="text-muted">
+    {% trans "The parts staff can pick when ordering a part on a case. A part counts as in stock only when \"Consumable\" is ticked AND the stock quantity is greater than zero (SVC-10). Otherwise ordering it requires a 50% advance recorded on the case (SVC-11), and the case cannot enter \"Waiting for part\" until that advance is linked to the order (SVC-14)." %}
+  </p>
+  <p class="text-muted">
+    {% trans "Changing \"Consumable\" or the stock quantity therefore changes how open part orders are treated - the check runs when the case is moved, not when the order was created. The list starts empty: which parts count as regular consumables is still pending from management." %}
+  </p>
+  {% if not can_edit %}
+    <p class="text-muted small">{% trans "Only a manager or director may edit the parts catalogue." %}</p>
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">{% trans "Parts" %}</div>
+    {% comment %}table-edit: compact inputs for an inline-editable grid.
+       table-stack-md: below 768px nine columns of inputs cannot fit, so
+       each part becomes a stacked block labelled from data-label (the
+       same msgids as the headers, so nothing new to translate).{% endcomment %}
+    <div class="table-responsive">
+      <table class="table table-edit table-stack-md align-middle mb-0">
+      <thead>
+        <tr>
+          <th class="ps-3">{% trans "Code" %}</th>
+          <th>{% trans "Name" %}</th>
+          <th>{% trans "Consumable" %}</th>
+          <th>{% trans "Stock qty" %}</th>
+          <th>{% trans "Unit price" %}</th>
+          <th>{% trans "Counts as stock part" %}</th>
+          <th>{% trans "Orders (open / total)" %}</th>
+          <th>{% trans "Installed on work orders" %}</th>
+          {% if can_edit %}<th class="pe-3">{% trans "Actions" %}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in part_rows %}
+          <tr>
+            {% if can_edit %}
+              <td class="ps-3 cell-mid" data-label="{% trans "Code" %}">{% include "backoffice/includes/_field.html" with field=row.form.code label_sr_only=True wrapper_class="mb-0" %}</td>
+              <td class="cell-wide" data-label="{% trans "Name" %}">{% include "backoffice/includes/_field.html" with field=row.form.name label_sr_only=True wrapper_class="mb-0" %}</td>
+              <td data-label="{% trans "Consumable" %}">{% include "backoffice/includes/_field.html" with field=row.form.is_consumable label_sr_only=True wrapper_class="mb-0" %}</td>
+              <td class="cell-num" data-label="{% trans "Stock qty" %}">{% include "backoffice/includes/_field.html" with field=row.form.stock_qty label_sr_only=True wrapper_class="mb-0" %}</td>
+              <td class="cell-num" data-label="{% trans "Unit price" %}">{% include "backoffice/includes/_field.html" with field=row.form.unit_price label_sr_only=True wrapper_class="mb-0" %}</td>
+            {% else %}
+              <td class="ps-3" data-label="{% trans "Code" %}">{{ row.part.code }}</td>
+              <td data-label="{% trans "Name" %}">{{ row.part.name }}</td>
+              <td data-label="{% trans "Consumable" %}">{% if row.part.is_consumable %}<span class="badge text-bg-success">{% trans "yes" %}</span>{% else %}<span class="badge text-bg-secondary">{% trans "no" %}</span>{% endif %}</td>
+              <td data-label="{% trans "Stock qty" %}">{{ row.part.stock_qty }}</td>
+              <td data-label="{% trans "Unit price" %}">
+                {% if row.part.unit_price is not None %}{{ row.part.unit_price }} &euro;
+                {% else %}<span class="badge text-bg-warning">{% trans "no price" %}</span>{% endif %}
+              </td>
+            {% endif %}
+            <td data-label="{% trans "Counts as stock part" %}">
+              {% if row.is_stock %}
+                <span class="badge text-bg-success">{% trans "yes" %}</span>
+              {% else %}
+                <span class="badge text-bg-secondary">{% trans "no" %}</span>
+              {% endif %}
+            </td>
+            <td data-label="{% trans "Orders (open / total)" %}">{{ row.open_order_count }} / {{ row.order_count }}</td>
+            <td data-label="{% trans "Installed on work orders" %}">{{ row.used_count }}</td>
+            {% if can_edit %}
+              <td class="pe-3" data-label="{% trans "Actions" %}">
+                <div class="row-actions">
+                  <button type="submit" class="btn btn-sm btn-primary"
+                          form="part-form-{{ row.part.pk }}">{% trans "Save" %}</button>
+                  {% if row.is_referenced %}
+                    {% comment %}Why it is disabled is said once, in the
+                       footnote under the table; the reference keeps it
+                       reachable from the button itself.{% endcomment %}
+                    <button type="button" class="btn btn-sm btn-outline-danger" disabled
+                            aria-describedby="parts-referenced-note">{% trans "Delete" %}</button>
+                  {% else %}
+                    <form method="post" action="{% url 'backoffice:part-delete' row.part.pk %}" class="d-inline"
+                          onsubmit="return confirm('{% trans "Delete this part from the catalogue?" %}');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Delete" %}</button>
+                    </form>
+                  {% endif %}
+                </div>
+                <form method="post" action="{% url 'backoffice:part-edit' row.part.pk %}" id="part-form-{{ row.part.pk }}">{% csrf_token %}</form>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          {% comment %}9 columns with the actions cell, 8 without - the
+          catalogue legitimately starts empty, so this row is what the page
+          shows on its first day.{% endcomment %}
+          <tr><td colspan="{% if can_edit %}9{% else %}8{% endif %}" class="text-muted p-3">{% trans "No parts in the catalogue yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+      </div>
+    {% if can_edit and any_referenced %}
+      <p class="form-text px-3 py-2 mb-0 border-top" id="parts-referenced-note">
+        {% trans "Referenced by case history (INV-03), so it cannot be deleted. There is no retirement flag yet - clearing \"Consumable\" or zeroing the stock is not one, it only changes how the open orders on this part are treated." %}
+      </p>
+    {% endif %}
+  </div>
+
+  {% if can_edit %}
+    <div class="card">
+      <div class="card-header">{% trans "Add part" %}</div>
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-md-2">
+            {% include "backoffice/includes/_field.html" with field=add_form.code wrapper_class="mb-0" %}
+          </div>
+          <div class="col-12 col-md-4">
+            {% include "backoffice/includes/_field.html" with field=add_form.name wrapper_class="mb-0" %}
+          </div>
+          <div class="col-6 col-md-2">
+            {% include "backoffice/includes/_field.html" with field=add_form.stock_qty wrapper_class="mb-0" %}
+          </div>
+          <div class="col-6 col-md-2">
+            {% include "backoffice/includes/_field.html" with field=add_form.unit_price wrapper_class="mb-0" %}
+          </div>
+          <div class="col-6 col-md-2">
+            {% include "backoffice/includes/_field.html" with field=add_form.is_consumable wrapper_class="mb-0" %}
+          </div>
+          <div class="col-6 col-md-2">
+            <button type="submit" class="btn btn-sm btn-primary" form="part-form-new">{% trans "Add part" %}</button>
+            <form method="post" action="{% url 'backoffice:part-add' %}" id="part-form-new">{% csrf_token %}</form>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

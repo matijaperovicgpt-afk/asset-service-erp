@@ -1,0 +1,112 @@
+{% load i18n %}
+<div class="guide-commandbar">
+<ol class="guide-stepper">
+  {% for item in guide.stepper %}
+    <li class="{{ item.state }}">
+      <span class="step-dot">{% if item.state == "done" %}&#10003;{% else %}{{ forloop.counter }}{% endif %}</span>
+      {{ item.status.name }}
+    </li>
+  {% endfor %}
+</ol>
+
+<div class="card mb-4 guide-card">
+  <div class="card-header">{% trans "Next step" %}</div>
+  <div class="card-body">
+    {% if guide.hero_kind == "done" %}
+      <p class="mb-0">{% trans "Case closed." %}</p>
+    {% else %}
+      {% if guide.done_steps %}
+        <details class="guide-done mb-2">
+          <summary>&#10003; {% trans "Completed" %} ({{ guide.done_steps|length }})</summary>
+          <ul class="guide-checklist mb-0">
+            {% for step in guide.done_steps %}
+              <li class="done"><span class="check">&#10003;</span> <span>{{ step.label }}</span></li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% endif %}
+      {% if guide.todo_steps %}
+        <ul class="guide-checklist mb-3">
+          {% for step in guide.todo_steps %}
+            <li class="{% if step.waiting_role %}waiting{% endif %}">
+              <span class="check"></span>
+              <span>{{ step.label }}{% if not step.blocking %} <small class="text-muted">({% trans "optional" %})</small>{% endif %}</span>
+              <span class="step-action">
+                {% if step.url %}
+                  {% comment %}Any step with a page of its own lands here, not
+                  just triage - the transport inquiry does too, and its button
+                  read "Open triage".{% endcomment %}
+                  <a class="btn btn-sm btn-primary" href="{{ step.url }}">{% trans "Open the form" %}</a>
+                {% elif step.actionable and step.anchor %}
+                  <a class="btn btn-sm btn-outline-primary" href="#section-{{ step.anchor }}"
+                     data-guide-open="{{ step.anchor }}">{% trans "Do it" %}</a>
+                {% elif step.actionable and step.admin_url %}
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ step.admin_url }}">{% trans "Open in admin" %}</a>
+                {% elif step.waiting_role %}
+                  <span class="badge text-bg-light">{% blocktrans with role=step.waiting_role %}Waiting for {{ role }}{% endblocktrans %}</span>
+                {% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        {% for t in guide.transitions %}
+          {% if t.enabled %}
+            <form method="post" action="{% url 'backoffice:case-transition' case.pk %}" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="to_status" value="{{ t.code }}">
+              <button type="submit" class="btn {% if t.primary %}btn-primary{% else %}btn-outline-secondary btn-sm{% endif %}">{{ t.label }}</button>
+            </form>
+          {% elif t.role_allowed %}
+            <button class="btn btn-outline-secondary btn-sm" disabled
+                    title="{% trans 'Complete the steps above first' %}">{{ t.label }}</button>
+          {% else %}
+            <span class="badge text-bg-light">{{ t.label }}: {% blocktrans with role=t.waiting_role %}Waiting for {{ role }}{% endblocktrans %}</span>
+          {% endif %}
+          {% if t.hint and not t.primary %}<small class="text-muted w-100">{{ t.hint }}</small>{% endif %}
+        {% endfor %}
+      </div>
+      {% if guide.hero_kind == "fallback" %}
+        <small class="text-muted d-block mt-2">{% trans "This status is not part of the guided flow; use the transition buttons." %}</small>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="guide-section{% if guide.focus and 'acc-transitions' not in guide.relevant_anchors %} guide-section-secondary{% endif %}" id="section-acc-transitions">
+  <button class="guide-section-toggle" type="button" data-bs-toggle="collapse"
+          data-bs-target="#acc-transitions" aria-expanded="false">{% trans "Transitions" %}</button>
+  <div id="acc-transitions" class="collapse{% if guide.hero.anchor == 'acc-transitions' %} show{% endif %}">
+    <div class="card mb-4">
+      <div class="card-header">{% trans "Transitions" %}</div>
+      <div class="card-body">
+        {% for status in transitions %}
+          <form method="post" action="{% url 'backoffice:case-transition' case.pk %}" class="row g-2 align-items-center mb-2">
+            {% csrf_token %}
+            <input type="hidden" name="to_status" value="{{ status.code }}">
+            <div class="col">
+              <input type="text" name="note" class="form-control form-control-sm" placeholder="{% trans 'Optional note' %}">
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="btn btn-sm btn-outline-primary">
+                {{ status.name }}
+              </button>
+            </div>
+          </form>
+        {% empty %}
+          <p class="text-muted mb-0">{% trans "No transitions available for you on this case." %}</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if guide.focus %}
+  <div class="text-end mb-3">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="toggle-sections"
+            data-show="{% trans 'Show all sections' %}"
+            data-hide="{% trans 'Show less' %}">{% trans "Show all sections" %}</button>
+  </div>
+{% endif %}
+</div>

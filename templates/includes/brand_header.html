@@ -1,0 +1,169 @@
+{% load i18n %}
+{% comment %}
+  The one site header, worn by all three shells. The caller picks a variant:
+
+      {% include "includes/brand_header.html" with variant="ops" %}
+
+  ops    backoffice staff chrome - sections, admin link, user, sign out
+  luxe   the public client portal - brand and language only
+  auth   the sign-in doorway - brand and language only
+
+  It defaults to the smallest variant, not the biggest. A caller that forgets
+  the argument gets a bare brand bar; it never leaks a staff nav, an admin
+  link and a sign-out form onto a public page. A backoffice shell that lost
+  its variant would look obviously wrong at a glance, which is the direction
+  you want this to fail in.
+{% endcomment %}
+{% with variant=variant|default:"auth" %}
+{% comment %}
+  navbar-expand-lg is the only Bootstrap navbar class on this element, and it
+  is here for exactly two rules that fire from 992px up:
+
+      .navbar-expand-lg .navbar-collapse { display: flex !important }
+      .navbar-expand-lg .navbar-toggler  { display: none }
+
+  That is the entire desktop behaviour of the mobile menu, for free, without
+  the stylesheet having to out-specify Bootstrap's own
+  .collapse:not(.show) { display: none }. Below 992px the nav stays hidden
+  until the toggler shows it. Only ops carries the class, because only ops
+  has a nav to collapse.
+{% endcomment %}
+{% comment %}
+  ops only: these links sit OUTSIDE <main>, so they inherit none of the
+  hx-target/hx-select that scopes every boosted request inside it. Without
+  the attributes below htmx falls back to its boost default and swaps the
+  whole <body> innerHTML with the full response - including the three
+  <script src> tags at the foot of the page. Bootstrap, htmx and app.js
+  then run a second time, Bootstrap owns two collapse handlers, and every
+  section toggle on the next case page opens twice and never closes until
+  a hard reload. Scoping the swap to #main is the fix; hx-select-oob keeps
+  the header itself fresh so .is-active / aria-current still move with you.
+{% endcomment %}
+<header class="brand-header brand-header--{{ variant }}{% if variant == "ops" %} navbar-expand-lg{% endif %}" id="site-header"{% if variant == "ops" %}
+        hx-target="#main" hx-select="#main" hx-select-oob="#site-header" hx-swap="outerHTML show:none"{% endif %}>
+  <div class="brand-header__inner container">
+
+    {% comment %}
+      Two spellings of one lockup. On the sign-in page the brand is a <span>,
+      not a link: before you are signed in there is nowhere for it to go, and
+      a link into the backoffice would only bounce off the login wall. The tag
+      is the only real difference - so if you ever change the mark, change it
+      in BOTH branches below.
+    {% endcomment %}
+    {% if variant == "auth" %}
+      <span class="brand-header__brand">
+        <svg class="brand-header__mark" viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
+          <path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm3 8.5 2.5 2.5L16 9.5"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="brand-header__wordmark">{{ SITE_NAME }} · {% trans "Backoffice" %}</span>
+      </span>
+    {% else %}
+      <a class="brand-header__brand" href="{% if variant == "luxe" %}{% url 'portal:report' %}{% else %}{% url 'backoffice:home' %}{% endif %}">
+        <svg class="brand-header__mark" viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
+          <path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm3 8.5 2.5 2.5L16 9.5"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        {% comment %} The client face carries SITE_NAME on its own. The staff tool
+           also says which part of the product you are standing in. {% endcomment %}
+        <span class="brand-header__wordmark">{{ SITE_NAME }}{% if variant != "luxe" %} · {% trans "Backoffice" %}{% endif %}</span>
+      </a>
+    {% endif %}
+
+    {% if variant == "ops" %}
+      {% comment %}
+        THE ONE PLACE A data-bs-toggle CONTROL IS ALLOWED IN THIS APP. The
+        backoffice is the only shell that loads bootstrap.bundle.min.js; the
+        portal and the sign-in page ship htmx and app.js and nothing else.
+        Copy this button into the luxe or auth variant and you get a hamburger
+        that does nothing at all - mobile on those two has to be pure CSS.
+
+        The icon is drawn inline instead of using .navbar-toggler-icon, which
+        paints itself from --bs-navbar-toggler-icon-bg. Bootstrap declares that
+        variable on .navbar, a class this header deliberately does not wear, so
+        the stock class would render an empty box.
+
+        app.js re-syncs every [data-bs-toggle="collapse"][data-bs-target]
+        after an htmx swap - keep that attribute pair together.
+      {% endcomment %}
+      <button class="brand-header__toggle navbar-toggler" type="button"
+              data-bs-toggle="collapse" data-bs-target="#navMain"
+              aria-controls="navMain" aria-expanded="false"
+              aria-label="{% trans "Toggle navigation" %}">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <nav class="brand-header__nav collapse navbar-collapse" id="navMain"
+           aria-label="{% trans "Main navigation" %}">
+        {% comment %}
+          "You are here" is said twice on purpose. .is-active is the visual
+          half - white text plus a 2px accent underline, because colour alone
+          must not be the only channel - and aria-current is the programmatic
+          half. Without it a screen-reader user tabbing these seven links
+          hears seven identical "link" announcements with nothing marking the
+          section they are standing in. The app already does this on its
+          breadcrumbs in a dozen templates; the header was the odd one out.
+
+          The current url_name is lifted into `here` once rather than looked
+          up twice per link, so the class and the attribute cannot disagree.
+        {% endcomment %}
+        {% with here=request.resolver_match.url_name %}
+        <a class="brand-header__link{% if here == 'home' %} is-active{% endif %}"
+           {% if here == 'home' %}aria-current="page"{% endif %}
+           href="{% url 'backoffice:home' %}">{% trans "Home" %}</a>
+        <a class="brand-header__link{% if here == 'client-list' %} is-active{% endif %}"
+           {% if here == 'client-list' %}aria-current="page"{% endif %}
+           href="{% url 'backoffice:client-list' %}">{% trans "Clients" %}</a>
+        <a class="brand-header__link{% if here == 'section-service' %} is-active{% endif %}"
+           {% if here == 'section-service' %}aria-current="page"{% endif %}
+           href="{% url 'backoffice:section-service' %}">{% trans "Service" %}</a>
+        <a class="brand-header__link{% if here == 'section-storage' %} is-active{% endif %}"
+           {% if here == 'section-storage' %}aria-current="page"{% endif %}
+           href="{% url 'backoffice:section-storage' %}">{% trans "Storage" %}</a>
+        <a class="brand-header__link{% if here == 'section-transport' %} is-active{% endif %}"
+           {% if here == 'section-transport' %}aria-current="page"{% endif %}
+           href="{% url 'backoffice:section-transport' %}">{% trans "Transport" %}</a>
+        <a class="brand-header__link{% if here == 'case-list' %} is-active{% endif %}"
+           {% if here == 'case-list' %}aria-current="page"{% endif %}
+           href="{% url 'backoffice:case-list' %}">{% trans "All cases" %}</a>
+        {% endwith %}
+        {% if user.is_staff %}
+          {% comment %} Full reload: Django's admin is a different shell entirely, so a
+             boosted swap would try to paste it inside #main. No active state - it
+             leaves this app rather than selecting a section of it. {% endcomment %}
+          <a class="brand-header__link" href="{% url 'admin:index' %}" hx-boost="false">{% trans "Administration" %}</a>
+        {% endif %}
+      </nav>
+    {% endif %}
+
+    <div class="brand-header__meta">
+      {% comment %}
+        The switcher is a POST form and brings its own hx-boost="false":
+        changing language rewrites <html lang> and every string in the chrome,
+        which a partial swap cannot repaint. The backoffice used to wrap this
+        include in <span class="me-2"> at the call site for spacing; that is
+        the header's own flex gap now, so the wrapper is gone.
+      {% endcomment %}
+      {% include "includes/language_switcher.html" %}
+      {% if variant == "ops" and user.is_authenticated %}
+        {% comment %} Hidden below 576px: brand, hamburger, switcher and sign-out
+           already fill a phone's top row, and the name is on the home page. {% endcomment %}
+        <span class="d-none d-sm-inline">{{ user.get_full_name|default:user.username }}</span>
+        {% comment %} Full reload on sign out: the login page is a different shell,
+           with nothing for a boosted response to swap into. The button borrows the
+           switcher's btn-outline-light so the two controls read as one object -
+           the switcher include is shared by all three shells and cannot be
+           restyled from here. {% endcomment %}
+        <form method="post" action="{% url 'logout' %}" class="d-flex" hx-boost="false">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-light">{% trans "Sign out" %}</button>
+        </form>
+      {% endif %}
+    </div>
+
+  </div>
+</header>
+{% endwith %}

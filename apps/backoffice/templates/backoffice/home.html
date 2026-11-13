@@ -1,0 +1,152 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Home - Backoffice" %}{% endblock %}
+
+{% block content %}
+  {% comment %} Landing page. Same view, same links as before - the page just
+     uses its width: the three section tiles stay on top, the most-used
+     shortcut sits in the heading, and below the tiles the space that used
+     to be empty carries the two lists a person coming back to the desk
+     wants first (recently touched open works, reports still waiting for
+     triage) plus the clients panel the view had been computing all along.
+     The remaining shortcuts move into a compact card on the right. {% endcomment %}
+  <div class="page-heading mb-3">
+    <h1 class="h3 mb-0">{% trans "Sections" %}</h1>
+    <div class="ms-auto d-flex gap-2 flex-wrap">
+      <a class="btn btn-primary" href="{% url 'backoffice:case-create' %}">{% trans "New case" %}</a>
+      <a class="btn btn-outline-secondary" href="{% url 'backoffice:case-list' %}">{% trans "All cases" %}</a>
+    </div>
+  </div>
+
+  <div class="row row-cols-1 row-cols-md-3 g-3 mb-4">
+    {% for s in sections %}
+      <div class="col">
+        <div class="card h-100 position-relative section-tile">
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <h2 class="h5 card-title mb-0">{{ s.label }}</h2>
+            <p class="mb-0 text-muted text-nowrap">
+              {% trans "Open cases" %}: <span class="badge text-bg-primary">{{ s.open_count }}</span>
+            </p>
+            <a class="stretched-link" href="{% url s.url_name %}" aria-label="{{ s.label }}"></a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h2 class="h5 card-title mb-3">{% trans "Recently updated works" %}</h2>
+          {% if recent_cases %}
+            <ul class="list-group list-group-flush">
+              {% for case in recent_cases %}
+                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-1 px-0">
+                  <span>
+                    <a class="fw-semibold" href="{% url 'backoffice:case-detail' case.pk %}">#{{ case.id }}</a>
+                    <span class="badge text-bg-secondary ms-1">{{ case.get_case_type_display }}</span>
+                    {% if case.client %}
+                      <span class="ms-1">{{ case.client.name }}</span>
+                    {% else %}
+                      <span class="ms-1 text-muted">{{ case.raw_contact_name|default:"—" }}</span>
+                    {% endif %}
+                    {% if case.assigned_technician %}
+                      <small class="text-muted ms-1">· {{ case.assigned_technician }}</small>
+                    {% endif %}
+                  </span>
+                  <span class="text-nowrap">
+                    <span class="badge text-bg-primary">{{ case.status.name }}</span>
+                    <small class="text-muted ms-1">{{ case.updated_at|date:"d.m.Y H:i" }}</small>
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0">{% trans "No open works yet." %}</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <h2 class="h5 card-title mb-3">
+            {% trans "Awaiting triage" %}
+            {% if untriaged_count %}
+              <span class="badge text-bg-warning ms-1">{{ untriaged_count }}</span>
+            {% endif %}
+          </h2>
+          {% if untriaged_cases %}
+            <p class="text-muted small">{% trans "Reports not yet linked to a client. They stay out of the client and asset pages until triaged." %}</p>
+            <ul class="list-group list-group-flush">
+              {% for case in untriaged_cases %}
+                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-1 px-0">
+                  <span>
+                    <a class="fw-semibold" href="{% url 'backoffice:case-detail' case.pk %}">#{{ case.id }}</a>
+                    <span class="badge text-bg-secondary ms-1">{{ case.get_case_type_display }}</span>
+                    <span class="ms-1">{{ case.raw_contact_name|default:"—" }}</span>
+                    <small class="text-muted ms-1">{{ case.reported_at|date:"d.m.Y" }}</small>
+                  </span>
+                  <a class="btn btn-sm btn-outline-warning text-nowrap" href="{% url 'backoffice:case-triage' case.pk %}">{% trans "Triage" %}</a>
+                </li>
+              {% endfor %}
+            </ul>
+            {% if untriaged_count > untriaged_cases|length %}
+              <p class="text-muted small mb-0 mt-2">
+                {% blocktrans count counter=untriaged_count %}{{ counter }} report is waiting in total.{% plural %}{{ counter }} reports are waiting in total.{% endblocktrans %}
+              </p>
+            {% endif %}
+          {% else %}
+            <p class="text-muted mb-0">{% trans "Every open report is linked to a client." %}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 card-title mb-0">{% trans "Clients" %} <span class="badge text-bg-secondary ms-1">{{ client_count }}</span></h2>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:client-list' %}">{% trans "All clients" %}</a>
+          </div>
+          {% if recent_clients %}
+            <ul class="list-group list-group-flush">
+              {% for client in recent_clients %}
+                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-1 px-0">
+                  <span>
+                    <a class="fw-semibold" href="{% url 'backoffice:client-detail' client.pk %}">{{ client.name }}</a>
+                    {% if client.phone %}<small class="text-muted ms-1">{{ client.phone }}</small>{% endif %}
+                  </span>
+                  <span class="text-nowrap small text-muted">
+                    {% blocktrans count counter=client.asset_count %}{{ counter }} asset{% plural %}{{ counter }} assets{% endblocktrans %}
+                    {% if client.open_case_count %}
+                      · <span class="badge text-bg-primary">{{ client.open_case_count }}</span> {% trans "open" %}
+                    {% endif %}
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0">{% trans "No clients yet - the first triage creates one." %}</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <h2 class="h5 card-title mb-3">{% trans "Shortcuts" %}</h2>
+          <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:section-storage-pricing' %}">{% trans "Storage price list" %}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:section-transport-pricing' %}">{% trans "Transport price list" %}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:parts-catalog' %}">{% trans "Parts catalogue" %}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:approval-limits' %}">{% trans "Approval limits" %}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:storage-layout' %}">{% trans "Storage layout" %}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">{% trans "Administration" %}</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

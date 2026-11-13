@@ -1,0 +1,100 @@
+{% extends "backoffice/base.html" %}
+{% load i18n form_tags %}
+
+{% block title %}{% trans "Transport price list" %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:home' %}">{% trans "Home" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-transport' %}">{% trans "Transport" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Price list" %}</li>
+    </ol>
+  </nav>
+  <div class="page-heading mb-4 d-flex align-items-center gap-2">
+    <h1 class="h3 mb-0">{% trans "Transport price list" %}</h1>
+  </div>
+
+  <p class="text-muted">
+    {% trans "Transport price list. Prices are in EUR. Each asset model is priced for two delivery zones - Zone A and Zone B. The price includes loading, export and import documentation (import guarantee), transport from the EU port and unloading. An empty price means the model is priced individually (negotiable)." %}
+  </p>
+  {% if not can_edit %}
+    <p class="text-muted small">{% trans "Only a manager or director may edit the price list." %}</p>
+  {% endif %}
+
+  {% for group_label, price_rows in price_groups %}
+    <div class="card mb-4">
+      <div class="card-header">{{ group_label }}</div>
+      <div class="table-responsive">
+          <table class="table table-edit table-stack-md align-middle mb-0">
+          <thead>
+            <tr>
+              <th class="ps-3">{% trans "Model" %}</th>
+              <th>{% trans "Brand" %}</th>
+              <th>{% trans "Price" %} (€)</th>
+              <th>{% trans "Active" %}</th>
+              {% if can_edit %}<th class="pe-3">{% trans "Actions" %}</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row, row_form in price_rows %}
+              <tr>
+                {% if can_edit %}
+                  <td class="ps-3 cell-mid" data-label="{% trans "Model" %}">
+                    {% include "backoffice/includes/_field.html" with field=row_form.model_code label_sr_only=True wrapper_class="mb-0" %}
+                    <div class="d-none">{{ row_form.destination_zone }}</div>
+                  </td>
+                  <td class="cell-mid" data-label="{% trans "Brand" %}">{% include "backoffice/includes/_field.html" with field=row_form.brand label_sr_only=True wrapper_class="mb-0" %}</td>
+                  <td class="cell-num" data-label="{% trans "Price" %} (€)">{% include "backoffice/includes/_field.html" with field=row_form.price label_sr_only=True wrapper_class="mb-0" %}</td>
+                  <td data-label="{% trans "Active" %}">{% include "backoffice/includes/_field.html" with field=row_form.is_active label_sr_only=True wrapper_class="mb-0" %}</td>
+                  <td class="pe-3" data-label="{% trans "Actions" %}">
+                    <div class="row-actions">
+                      <button type="submit" class="btn btn-sm btn-primary"
+                              form="price-form-{{ row.pk }}">{% trans "Save" %}</button>
+                      <form method="post" action="{% url 'backoffice:transport-price-delete' row.pk %}" class="d-inline"
+                            onsubmit="return confirm('{% trans "Delete this price row?" %}');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Delete" %}</button>
+                      </form>
+                    </div>
+                    <form method="post" action="{% url 'backoffice:transport-price-edit' row.pk %}" id="price-form-{{ row.pk }}">{% csrf_token %}</form>
+                  </td>
+                {% else %}
+                  <td class="ps-3" data-label="{% trans "Model" %}">{{ row.model_code }}</td>
+                  <td data-label="{% trans "Brand" %}">{{ row.brand|default:"-" }}</td>
+                  <td data-label="{% trans "Price" %} (€)">{% if row.price is not None %}{{ row.price }}{% else %}<span class="text-muted">{% trans "negotiable" %}</span>{% endif %}</td>
+                  <td data-label="{% trans "Active" %}">{% if row.is_active %}{% trans "Yes" %}{% else %}<span class="text-muted">{% trans "No" %}</span>{% endif %}</td>
+                {% endif %}
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-muted p-3">{% trans "No price rows defined yet." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endfor %}
+
+  {% if can_edit %}
+    <div class="card">
+      <div class="card-header">{% trans "Add price row" %}</div>
+      <div class="table-responsive">
+          <table class="table table-edit table-stack-md align-middle mb-0">
+          <tbody>
+            <tr class="table-light">
+              <td class="ps-3 cell-mid">{% include "backoffice/includes/_field.html" with field=add_form.model_code wrapper_class="mb-0" %}</td>
+              <td class="cell-mid">{% include "backoffice/includes/_field.html" with field=add_form.brand wrapper_class="mb-0" %}</td>
+              <td class="cell-mid">{% include "backoffice/includes/_field.html" with field=add_form.destination_zone wrapper_class="mb-0" %}</td>
+              <td class="cell-num">{% include "backoffice/includes/_field.html" with field=add_form.price wrapper_class="mb-0" %}</td>
+              <td>{% include "backoffice/includes/_field.html" with field=add_form.is_active wrapper_class="mb-0" %}</td>
+              <td class="pe-3">
+                <button type="submit" class="btn btn-sm btn-primary" form="price-form-new">{% trans "Add row" %}</button>
+                <form method="post" action="{% url 'backoffice:transport-price-add' %}" id="price-form-new">{% csrf_token %}</form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

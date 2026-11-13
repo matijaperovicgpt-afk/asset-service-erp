@@ -1,0 +1,13 @@
+{% comment %} One real Bootstrap .form-check per option: without the wrapper
+there is no hanging indent, so a label that wraps runs back under its
+checkbox. The container deliberately carries no form-check-input class -
+see PriceItemCheckboxSelect. {% endcomment %}
+<div{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %} class="price-item-list">
+  {% for group, options, index in widget.optgroups %}{% for option in options %}
+  <div class="form-check price-item-row">
+    {% include "django/forms/widgets/input.html" with widget=option %}
+    <label class="form-check-label" for="{{ option.attrs.id }}">{{ option.label }}</label>
+    {% if option.hours_html %}<span class="price-item-hours-wrap">{{ option.hours_html }}<span class="price-item-hours-unit">h</span></span>{% endif %}
+  </div>
+  {% endfor %}{% endfor %}
+</div>

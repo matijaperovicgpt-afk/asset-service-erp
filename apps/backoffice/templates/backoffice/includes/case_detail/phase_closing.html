@@ -1,0 +1,259 @@
+{% load i18n form_tags %}
+<section class="guide-phase{% if guide.current_phase == 'closing' %} guide-phase-current{% endif %}" id="phase-closing">
+  <h2 class="guide-phase-title">{% trans "Handover and closing" %}</h2>
+
+  {% if case.case_type == "SERVICE" %}
+    {% section "acc-completion" _("Client completion notice") %}
+      {% for notice in completion_notices %}
+        <div class="border rounded p-2 mb-2 small">
+          <div class="d-flex justify-content-between">
+            <span>
+              #{{ notice.pk }} - {{ notice.get_channel_display }}
+              <span class="badge text-bg-light">{{ notice.get_handover_mode_display }}</span>
+              {{ notice.scheduled_for|date:"d.m.Y H:i" }} - {{ notice.final_cost }} &euro;
+            </span>
+            {% if notice.sent_at %}
+              <span class="badge text-bg-success">{% trans "sent" %} {{ notice.sent_at|date:"d.m.Y H:i" }}</span>
+            {% elif notice.channel == "SMS" %}
+              <span class="badge text-bg-warning">{% trans "send manually from the phone" %}</span>
+            {% else %}
+              <span class="badge text-bg-danger">{% trans "sending failed" %}</span>
+            {% endif %}
+          </div>
+          {% if notice.cost_note %}
+            <div class="mt-1 text-muted">{% trans "Cost differs from the work order" %}: {{ notice.cost_note }}</div>
+          {% endif %}
+          <details class="mt-1">
+            <summary class="text-muted">{% trans "Composed message" %}</summary>
+            <pre class="small mb-0 mt-1 composed-message">{{ notice.message }}</pre>
+          </details>
+        </div>
+      {% empty %}
+        <p class="text-muted small mb-2">{% trans "The client has not been notified of completion yet." %}</p>
+      {% endfor %}
+      <form method="post" action="{% url 'backoffice:completion-notice' case.pk %}">
+        {% csrf_token %}
+        {% include "backoffice/includes/_form_errors.html" with form=completion_notice_form %}
+        {% include "backoffice/includes/_field.html" with field=completion_notice_form.works_performed %}
+        <div class="row g-2">
+          <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=completion_notice_form.final_cost %}</div>
+          <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=completion_notice_form.handover_mode %}</div>
+          <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=completion_notice_form.scheduled_for %}</div>
+        </div>
+        {% if completion_cost_problem %}
+          <div class="alert alert-warning small py-2">
+            {% trans "The work order cannot be totalled, so the figure cannot be checked - state why it is right." %}
+            <div class="mt-1">{{ completion_cost_problem }}</div>
+          </div>
+        {% elif completion_recorded_cost is not None %}
+          <p class="small text-muted mb-2">
+            {% blocktrans with amount=completion_recorded_cost %}The work order records {{ amount }} &euro;. Departing from it needs a reason.{% endblocktrans %}
+          </p>
+        {% endif %}
+        {% include "backoffice/includes/_field.html" with field=completion_notice_form.cost_note %}
+        {% include "backoffice/includes/_field.html" with field=completion_notice_form.channel %}
+        <button type="submit" class="btn btn-sm btn-primary">{% trans "Compose and send" %}</button>
+        <small class="text-muted d-block mt-1">{% trans "The system composes the message from these fields. E-mail is sent immediately; an SMS draft is prepared for sending from the phone (no SMS gateway)." %}</small>
+      </form>
+    {% endsection %}
+  {% endif %}
+
+  {% if awaiting_handover %}
+    {% section "acc-handover" _("Handover vs. intake comparison") %}
+      {% if handover_comparison %}
+        {% if handover_comparison.intake_record %}
+          <p class="mb-2"><strong>{% trans "Intake record" %}</strong> #{{ handover_comparison.intake_record.pk }} - {{ handover_comparison.intake_record.created_at|date:"d.m.Y H:i" }}</p>
+          {% if handover_comparison.items %}
+            <div class="table-responsive">
+              <table class="table table-sm mb-2">
+                <thead><tr><th>{% trans "Category" %}</th><th>{% trans "Item" %}</th><th>{% trans "Qty" %}</th><th>{% trans "Condition" %}</th></tr></thead>
+                <tbody>
+                  {% for item in handover_comparison.items %}
+                    <tr><td><span class="badge text-bg-light">{{ item.category }}</span></td><td>{{ item.item_name }}</td><td>{{ item.quantity }}</td><td>{{ item.condition_note|default:"-" }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-2">{% trans "No items listed on the intake record." %}</p>
+          {% endif %}
+          {% if handover_comparison.amendments %}
+            <p class="mb-1"><strong>{% trans "Later-discovered condition (amendments)" %}</strong></p>
+            <ul class="mb-2">
+              {% for amendment in handover_comparison.amendments %}<li><small>{{ amendment }}</small></li>{% endfor %}
+            </ul>
+          {% endif %}
+          <p class="mb-1"><strong>{% trans "State of the asset at intake" %}</strong></p>
+          <dl class="row mb-2 small">
+            <dt class="col-sm-4">{% trans "Visible damage / issues" %}</dt>
+            <dd class="col-sm-8 mb-1">{{ handover_comparison.intake_record.damage_note|default:"-"|linebreaksbr }}</dd>
+            <dt class="col-sm-4">{% trans "General condition" %}</dt>
+            <dd class="col-sm-8 mb-0">{{ handover_comparison.intake_record.general_condition_note|default:"-"|linebreaksbr }}</dd>
+          </dl>
+        {% else %}
+          <p class="text-warning mb-2">{% trans "No intake record found on this case." %}</p>
+        {% endif %}
+        {% if handover_comparison.work_log or handover_comparison.used_parts %}
+          <p class="mb-1"><strong>{% trans "Work performed since intake" %}</strong></p>
+          <ul class="small mb-2">
+            {% for entry in handover_comparison.work_log %}
+              <li>{{ entry.description }} ({{ entry.hours }} h)</li>
+            {% endfor %}
+            {% for used in handover_comparison.used_parts %}
+              <li>{% trans "Part" %}: {{ used.part }} &times; {{ used.quantity }}</li>
+            {% endfor %}
+          </ul>
+          {% if handover_comparison.total_hours %}
+            <p class="small mb-2"><strong>{% trans "Total working time" %}:</strong> {{ handover_comparison.total_hours }} h</p>
+          {% endif %}
+        {% endif %}
+        <p class="mb-1"><small>{% trans "Intake photos" %}: {{ handover_comparison.intake_photo_count }} - {% trans "Handover photos" %}: {{ handover_comparison.handover_photo_count }}</small></p>
+        <p class="mb-0"><strong>{% trans "Discrepancies" %}:</strong> {{ handover_comparison.discrepancies_note|default:"-"|linebreaksbr }}</p>
+        <p class="mb-0 mt-2">
+          <a class="btn btn-sm btn-outline-secondary" target="_blank" href="{% url 'backoffice:handover-export' case.pk handover.pk %}">{% trans "Printable record" %}</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'backoffice:handover-export' case.pk handover.pk %}?format=doc">{% trans "Download as Word (.doc)" %}</a>
+        </p>
+        <hr>
+        {% comment %} SVC-07 / procedure §7: the asset is photographed
+        "at intake and at handover" - the arrival half has been mandatory
+        since SVC-07 was implemented, this is the departure half. It is
+        listed first because it happens first: photograph, compare,
+        then sign. {% endcomment %}
+        <p class="mb-1">
+          {% if handover_has_photos %}
+            <span class="badge bg-success">&#10003;</span> {% trans "Handover photos on file" %}
+          {% else %}
+            <span class="badge bg-secondary">&#10007;</span> {% trans "Handover photos missing" %}
+          {% endif %}
+        </p>
+        {% if not handover.signed_at %}
+          <form method="post" action="{% url 'backoffice:handover-photos' case.pk handover.pk %}" enctype="multipart/form-data" class="mb-2">
+            {% csrf_token %}
+            {% include "backoffice/includes/_form_errors.html" with form=handover_media_form %}
+            {% include "backoffice/includes/_field.html" with field=handover_media_form.photos wrapper_class="mb-1" %}
+            {% include "backoffice/includes/_field.html" with field=handover_media_form.videos wrapper_class="mb-1" %}
+            <button type="submit" class="btn btn-sm btn-primary">{% trans "Upload handover documentation" %}</button>
+            <div class="form-text">{% trans "Photograph the asset as it goes back out, so the state at handover can be compared with the state at intake." %}</div>
+          </form>
+        {% endif %}
+        <p class="mb-1">
+          {% if handover.technician_signed_at %}
+            <span class="badge bg-success">&#10003;</span> {% trans "Worker signature" %}: {{ handover.signed_by_technician|default:"-" }} - {{ handover.technician_signed_at|date:"d.m.Y H:i" }}
+          {% else %}
+            <span class="badge bg-secondary">&#10007;</span> {% trans "Worker signature missing" %}
+          {% endif %}
+        </p>
+        {% if not handover.technician_signed_at and not handover.signed_at %}
+          <form method="post" action="{% url 'backoffice:handover-tech-sign' case.pk handover.pk %}" class="mb-2">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-primary">{% trans "Sign as responsible worker" %}</button>
+            <small class="text-muted d-block">{% trans "Digital approval that state, equipment and work done were compared against the intake record." %}</small>
+          </form>
+        {% endif %}
+        <p class="mb-1">
+          {% if handover_has_approval %}
+            <span class="badge bg-success">&#10003;</span> {% trans "Client approval scan on file" %}
+          {% else %}
+            <span class="badge bg-secondary">&#10007;</span> {% trans "Client approval scan missing" %}
+          {% endif %}
+        </p>
+        {% if not handover_has_approval and not handover.signed_at %}
+          <form method="post" action="{% url 'backoffice:handover-approval' case.pk handover.pk %}" enctype="multipart/form-data" class="mb-2">
+            {% csrf_token %}
+            {% include "backoffice/includes/_form_errors.html" with form=handover_approval_form %}
+            {% include "backoffice/includes/_field.html" with field=handover_approval_form.file wrapper_class="mb-1" %}
+            <button type="submit" class="btn btn-sm btn-primary">{% trans "Upload client approval" %}</button>
+            <div class="form-text">{% trans "Scan of the signed document confirming the client agrees to take the asset back." %}</div>
+          </form>
+        {% endif %}
+        {% if handover.signed_at %}
+          <p class="mb-0 mt-2"><span class="badge bg-success">{% trans "Signed" %}</span> {% trans "Received by" %} {{ handover.received_by_name }} - {{ handover.signed_at|date:"d.m.Y H:i" }}</p>
+        {% else %}
+          <form method="post" action="{% url 'backoffice:handover-note' case.pk handover.pk %}" class="mt-3">
+            {% csrf_token %}
+            <label class="form-label mb-1" for="handover-note-{{ handover.pk }}">{% trans "Discrepancies note (editable until signed)" %}</label>
+            <textarea name="discrepancies_note" id="handover-note-{{ handover.pk }}" class="form-control form-control-sm mb-2" rows="3">{{ handover.discrepancies_note }}</textarea>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">{% trans "Save note" %}</button>
+          </form>
+          <form method="post" action="{% url 'backoffice:handover-sign' case.pk handover.pk %}" class="mt-3">
+            {% csrf_token %}
+            {% include "backoffice/includes/_form_errors.html" with form=handover_sign_form %}
+            {% include "backoffice/includes/_field.html" with field=handover_sign_form.received_by_name %}
+            <button type="submit" class="btn btn-sm btn-primary"{% if not handover.technician_signed_at or not handover_has_approval or not handover_has_photos %} disabled{% endif %}>{% trans "Sign handover" %}</button>
+            <small class="text-muted d-block mt-1">{% trans "Signing captures name + timestamp and makes the record final. Requires the handover photos, the worker signature and the client approval scan." %}</small>
+          </form>
+        {% endif %}
+      {% else %}
+        <form method="post" action="{% url 'backoffice:handover-create' case.pk %}">
+          {% csrf_token %}
+          <p class="text-muted mb-2">{% trans "No handover record exists yet - create one to compare it with the intake record before closing." %}</p>
+          <label class="form-label mb-1" for="handover-initial-note">{% trans "Initial discrepancies note (optional)" %}</label>
+          <textarea name="discrepancies_note" id="handover-initial-note" class="form-control form-control-sm mb-2" rows="2"></textarea>
+          <button type="submit" class="btn btn-sm btn-primary">{% trans "Create handover record" %}</button>
+        </form>
+      {% endif %}
+    {% endsection %}
+  {% endif %}
+
+  {% if awaiting_closing %}
+    {% section "acc-closing" _("Closing checklist") %}
+      <ul class="list-unstyled mb-2">
+        {% if case.case_type == "TRANSPORT" %}
+          {% comment %}Informational: the delivery protocol gates the 'delivered'
+          transition, not closing.{% endcomment %}
+          <li class="mb-1">
+            {% if delivery_confirmation %}
+              <span class="badge bg-success">&#10003;</span> {% trans "Delivery protocol recorded" %}
+              {% if not delivery_has_protocol %}<small class="text-muted">- {% trans "signed scan missing" %}</small>{% endif %}
+            {% else %}
+              <span class="badge bg-secondary">&#10007;</span> {% trans "Delivery protocol not recorded yet" %}
+            {% endif %}
+          </li>
+        {% endif %}
+        <li class="mb-1">
+          {% if handover.signed_at %}
+            <span class="badge bg-success">&#10003;</span> {% trans "Handover record signed" %}
+          {% else %}
+            <span class="badge bg-secondary">&#10007;</span> {% trans "Handover record not signed yet" %}
+          {% endif %}
+        </li>
+        <li>
+          {% if case.financially_settled %}
+            <span class="badge bg-success">&#10003;</span> {% trans "Financially settled" %}
+          {% else %}
+            <span class="badge bg-secondary">&#10007;</span> {% trans "Not financially settled" %}
+          {% endif %}
+        </li>
+      </ul>
+      {% if can_settle %}
+        <form method="post" action="{% url 'backoffice:case-settlement' case.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="settled" value="{% if case.financially_settled %}0{% else %}1{% endif %}">
+          <label class="form-label mb-1" for="settlement-note">{% trans "Note" %}</label>
+          <input type="text" name="note" id="settlement-note" class="form-control form-control-sm mb-2" placeholder="{% trans 'Note (optional)' %}">
+          {% if case.financially_settled %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Revert: mark NOT settled" %}</button>
+          {% else %}
+            <button type="submit" class="btn btn-sm btn-success">{% trans "Mark financially settled" %}</button>
+          {% endif %}
+        </form>
+      {% else %}
+        <small class="text-muted">{% trans "Financial settlement is set by a manager or director." %}</small>
+      {% endif %}
+      {% if work_order.closed_at %}
+        <div class="border rounded p-2 mt-3 small">
+          {% blocktrans with when=work_order.closed_at|date:"d.m.Y H:i" by=work_order.closed_by|default:"-" %}Work order closed on {{ when }} by {{ by }} (SVC-20). It takes no further work-log or parts entries.{% endblocktrans %}
+          {% if can_settle %}
+            <form method="post" action="{% url 'backoffice:work-order-reopen' case.pk %}" class="mt-2">
+              {% csrf_token %}
+              {% include "backoffice/includes/_form_errors.html" with form=work_order_reopen_form %}
+              {% include "backoffice/includes/_field.html" with field=work_order_reopen_form.reason wrapper_class="mb-2" %}
+              <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Reopen the work order" %}</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+      <small class="text-muted d-block mt-2">{% trans "Closing the case is reserved for a manager or director; the closing transition records who closed it and when." %}</small>
+    {% endsection %}
+  {% endif %}
+</section>

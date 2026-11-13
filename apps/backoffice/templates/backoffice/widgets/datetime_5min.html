@@ -1,0 +1,7 @@
+{% comment %} SVC-04: data-working-hours carries the per-weekday opening
+   windows; app.js narrows the slot menu to the picked date's weekday
+   and empties it on a closed day. Absent when the field is not the
+   site's own time to keep (TRP-02 carrier windows). {% endcomment %}
+<div class="input-group input-group-sm flex-nowrap"{% if widget.working_hours %} data-working-hours="{{ widget.working_hours }}"{% endif %}>
+  {% for widget in widget.subwidgets %}{% include widget.template_name %}{% endfor %}
+</div>

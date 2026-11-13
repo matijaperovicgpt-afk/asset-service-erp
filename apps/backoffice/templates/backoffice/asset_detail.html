@@ -1,0 +1,56 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ asset }} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:client-list' %}">{% trans "Clients" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:client-detail' asset.client.pk %}">{{ asset.client.name }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ asset }}</li>
+    </ol>
+  </nav>
+
+  <div class="page-heading mb-4">
+    <h1 class="h3 mb-0">{{ asset }}</h1>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">{% trans "Asset data" %}</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">{% trans "Owner" %}</dt>
+        <dd class="col-sm-9"><a href="{% url 'backoffice:client-detail' asset.client.pk %}">{{ asset.client.name }}</a></dd>
+        <dt class="col-sm-3">{% trans "Asset type" %}</dt>
+        <dd class="col-sm-9">{{ asset.asset_type }}</dd>
+        {% if asset.manufacturer or asset.model %}
+          <dt class="col-sm-3">{% trans "Make / model" %}</dt>
+          <dd class="col-sm-9">{{ asset.manufacturer }} {{ asset.model }}</dd>
+        {% endif %}
+        {% if asset.registration_no %}
+          <dt class="col-sm-3">{% trans "Registration number" %}</dt>
+          <dd class="col-sm-9">{{ asset.registration_no }}</dd>
+        {% endif %}
+        <dt class="col-sm-3">{% trans "Length (m)" %}</dt>
+        <dd class="col-sm-9">{{ asset.length_m }}</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">{% trans "Works" %} <span class="badge text-bg-light">{{ cases|length }}</span></div>
+    <div class="card-body">
+      {% include "backoffice/includes/_case_list_compact.html" with cases=cases %}
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">
+      {% trans "Media" %} <span class="badge text-bg-light">{{ asset_media.total }}</span>
+    </div>
+    <div class="card-body">
+      {% include "backoffice/includes/_media_gallery.html" with gallery=asset_media %}
+    </div>
+  </div>
+{% endblock %}

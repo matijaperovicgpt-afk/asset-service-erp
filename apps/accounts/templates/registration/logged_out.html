@@ -1,0 +1,7 @@
+{% extends "registration/base_auth.html" %}
+{% load i18n %}
+{% block heading %}{% trans "Signed out" %}{% endblock %}
+{% block content %}
+  <p>{% trans "You have been signed out." %}</p>
+  <a class="btn btn-primary w-100" href="{% url 'login' %}">{% trans "Sign in again" %}</a>
+{% endblock %}

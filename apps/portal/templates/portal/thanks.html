@@ -1,0 +1,29 @@
+{% extends "portal/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Thank you" %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7 text-center">
+    <div class="card shadow-sm">
+      <div class="card-body py-5 px-4">
+        <div class="mb-3" aria-hidden="true">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="#0e7f8c" stroke-width="1.6"/>
+            <path d="m8 12.5 2.6 2.6L16 9.5" stroke="#0e7f8c" stroke-width="1.8"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h1 class="display-6 mb-3">{% trans "Thank you!" %}</h1>
+        <p class="lead">
+          {% trans "Your report has been received. Our service team will contact you soon." %}
+        </p>
+        <p class="text-muted small mb-0">
+          {% trans "We will keep you informed by e-mail or phone as your request progresses." %}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% blocktrans with id=case.id %}Case #{{ id }} - Backoffice{% endblocktrans %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:case-list' %}">{% trans "Cases" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">#{{ case.id }}</li>
+    </ol>
+  </nav>
+
+  <div class="page-heading mb-4">
+    <h1 class="h3">{% blocktrans with id=case.id %}Case #{{ id }}{% endblocktrans %}</h1>
+    <span class="badge text-bg-secondary">{{ case.get_case_type_display }}</span>
+    <span class="badge {% if case.status.is_terminal %}text-bg-success{% else %}text-bg-primary{% endif %}">{{ case.status.name }}</span>
+    {% if closed_entry %}
+      <span class="badge text-bg-dark">{% trans "closed by" %} {{ closed_entry.changed_by|default:"-" }} - {{ closed_entry.changed_at|date:"d.m.Y H:i" }}</span>
+    {% endif %}
+  </div>
+
+  {% if needs_triage %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert">
+      <span>{% trans "This case has raw submission data but no linked client yet." %}</span>
+      <a class="btn btn-sm btn-warning" href="{% url 'backoffice:case-triage' case.pk %}">{% trans "Triage: link or create client" %}</a>
+    </div>
+  {% endif %}
+
+  {% include "backoffice/includes/case_detail/command_bar.html" %}
+
+  {% if case.status.is_terminal %}
+    <div class="alert alert-secondary" role="status">
+      {% trans "This case is closed. Its record is kept as it was; the forms below are shown for reference and no longer accept changes. Files can still be added to the case file." %}
+    </div>
+  {% endif %}
+
+  <div class="row g-4{% if guide.focus %} guide-focus{% endif %}">
+    {% comment %}INV-15: on a closed case each section's CONTENT is wrapped
+    in a disabled fieldset by the {% templatetag openblock %} section {% templatetag closeblock %} tag. Not the column: the
+    section toggle is a <button>, so a fieldset here would disable that too
+    and a closed case could never be expanded to read.{% endcomment %}
+    <div class="col-lg-7">
+      {% include "backoffice/includes/case_detail/phase_intake.html" %}
+      {% include "backoffice/includes/case_detail/phase_approval.html" %}
+      {% include "backoffice/includes/case_detail/phase_work.html" %}
+      {% include "backoffice/includes/case_detail/phase_closing.html" %}
+    </div>
+
+    <div class="col-lg-5">
+      {% include "backoffice/includes/case_detail/case_file.html" %}
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var btn = document.getElementById("toggle-sections");
+      if (btn) {
+        btn.addEventListener("click", function () {
+          var on = document.body.classList.toggle("show-all-sections");
+          btn.textContent = on ? btn.dataset.hide : btn.dataset.show;
+        });
+      }
+      document.querySelectorAll("[data-guide-open]").forEach(function (link) {
+        link.addEventListener("click", function (event) {
+          var anchor = link.dataset.guideOpen;
+          var panel = document.getElementById(anchor);
+          var section = document.getElementById("section-" + anchor);
+          if (!panel || !section || typeof bootstrap === "undefined") return;
+          event.preventDefault();
+          bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false }).show();
+          section.scrollIntoView({ behavior: "smooth", block: "start" });
+          section.classList.remove("guide-flash");
+          void section.offsetWidth;
+          section.classList.add("guide-flash");
+        });
+      });
+    })();
+  </script>
+{% endblock %}

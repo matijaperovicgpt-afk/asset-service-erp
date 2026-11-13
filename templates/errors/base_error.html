@@ -1,0 +1,45 @@
+{% load i18n %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{% block title %}{% endblock %} - {{ SITE_NAME }}</title>
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
+  <link href="/static/css/app.css" rel="stylesheet">
+</head>
+{% comment %}
+  Shell for 403.html and 404.html (QA UI-L3). Django renders these with the
+  request context, but an error page must never itself fail, so this shell
+  uses no url tag, no static tag (a stale manifest would turn every 404
+  into a 500), no include and nothing from the user or session: the
+  brand bar is the auth variant of includes/brand_header.html written out as
+  plain markup, and the way back is a hard-coded /backoffice/ (anonymous
+  visitors land on the sign-in page from there). 500.html does NOT extend
+  this - see the note in that file.
+{% endcomment %}
+<body class="admin">
+<header class="brand-header brand-header--auth">
+  <div class="brand-header__inner container">
+    <span class="brand-header__brand">
+      <svg class="brand-header__mark" viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
+        <path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm3 8.5 2.5 2.5L16 9.5"
+              stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="brand-header__wordmark">{{ SITE_NAME }} · {% trans "Backoffice" %}</span>
+    </span>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="container py-5 auth-panel">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <p class="text-muted small mb-1">{% block code %}{% endblock %}</p>
+      <h1 class="h5 mb-3">{% block heading %}{% endblock %}</h1>
+      <p class="mb-4">{% block message %}{% endblock %}</p>
+      <a class="btn btn-primary" href="/backoffice/">{% trans "Back to the backoffice" %}</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>

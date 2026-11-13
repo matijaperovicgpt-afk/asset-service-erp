@@ -1,0 +1,355 @@
+{% load i18n form_tags %}
+<section class="guide-phase{% if guide.current_phase == 'work' %} guide-phase-current{% endif %}" id="phase-work">
+  <h2 class="guide-phase-title">{% trans "Work and delivery" %}</h2>
+
+  {% if case.case_type == "STORAGE" %}
+    {% section "acc-storage-position" _("Storage position") %}
+      <ul class="list-group list-group-flush mb-3">
+        {% for position in storage_positions %}
+          <li class="list-group-item d-flex justify-content-between px-0">
+            <span>{{ position }}</span>
+            <span class="text-muted">
+              {% if position.planned_exit_date %}{{ position.planned_exit_date|date:"d.m.Y" }}{% else %}{% trans "leaves last" %}{% endif %}
+            </span>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted px-0">{% trans "No storage position assigned." %}</li>
+        {% endfor %}
+      </ul>
+      <div class="border-top pt-3">
+        {% if storage_agreement %}
+          <a class="btn btn-sm btn-primary mb-2" href="{% url 'backoffice:storage-layout' %}?case={{ case.pk }}">
+            {% trans "Open yard layout (place on plan)" %}
+          </a>
+          <p class="form-text mt-0 mb-3">{% trans "Place the asset graphically on the to-scale yard plan, or record a hall/row/slot below." %}</p>
+          <form method="post" action="{% url 'backoffice:storage-position-assign' case.pk %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=storage_position_form %}</div>
+            <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=storage_position_form.hall %}</div>
+            <div class="col-md-2">{% include "backoffice/includes/_field.html" with field=storage_position_form.row %}</div>
+            <div class="col-md-2">{% include "backoffice/includes/_field.html" with field=storage_position_form.slot %}</div>
+            <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=storage_position_form.planned_exit_date %}</div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Assign position" %}</button>
+            </div>
+          </form>
+          <div class="form-text">{% trans "Assets leaving first must stay reachable: a deeper slot may not hold an asset that leaves earlier than the ones in front of it." %}</div>
+        {% else %}
+          <p class="text-muted small mb-0">{% trans "Record the storage documentation first - the position is assigned on the agreement." %}</p>
+        {% endif %}
+      </div>
+    {% endsection %}
+  {% endif %}
+
+  {% if case.case_type == "SERVICE" %}
+    {% section "acc-work-execution" _("Work execution") %}
+      {% if work_order %}
+        <h3 class="h6 mb-2">{% trans "Executed works" %}</h3>
+        {% for entry in work_log %}
+          <div class="border rounded p-2 mb-2 small">
+            {{ entry.description|linebreaksbr }}
+            <div class="text-muted mt-1">{{ entry.hours }} h - {{ entry.performed_by|default:"-" }} - {{ entry.created_at|date:"d.m.Y H:i" }}</div>
+          </div>
+        {% empty %}
+          <p class="text-muted small mb-2">{% trans "No performed works recorded yet." %}</p>
+        {% endfor %}
+        {% if work_log %}
+          <p class="small mb-2"><strong>{% trans "Total working time" %}:</strong> {{ total_hours }} h</p>
+        {% endif %}
+        {% if work_order.closed_at %}
+          <div class="alert alert-secondary small py-2">
+            {% blocktrans with when=work_order.closed_at|date:"d.m.Y H:i" %}The work order was closed on {{ when }} and takes no further entries (SVC-20). Reopen it from the closing checklist to record a correction.{% endblocktrans %}
+          </div>
+        {% elif work_order.is_preliminary %}
+          <div class="alert alert-warning small py-2">
+            {% trans "The work is carried out against an endorsed order. This one is still preliminary - check the client's entries and endorse it before recording work or parts (SVC-15)." %}
+          </div>
+        {% else %}
+        <form method="post" action="{% url 'backoffice:work-log-add' case.pk %}" class="mb-4">
+          {% csrf_token %}
+          {% include "backoffice/includes/_form_errors.html" with form=work_log_form %}
+          {% include "backoffice/includes/_field.html" with field=work_log_form.description %}
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=work_log_form.hours %}</div>
+            <div class="col-md-4">
+              <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Record work" %}</button>
+            </div>
+          </div>
+        </form>
+
+        <h3 class="h6 mb-2">{% trans "Parts implemented" %}</h3>
+        <ul class="small mb-2">
+          {% for used in used_parts %}
+            <li>{{ used.part }} &times; {{ used.quantity }}</li>
+          {% empty %}
+            <li class="text-muted">{% trans "No installed parts recorded yet." %}</li>
+          {% endfor %}
+        </ul>
+        {% if work_order.closed_at or work_order.is_preliminary %}
+        {% elif not used_part_form.part.field.queryset %}
+          <p class="text-muted small mb-4">{% trans "No parts in the catalogue yet - add one there before recording it as installed." %}
+            <a href="{% url 'backoffice:parts-catalog' %}">{% trans "Open the parts catalogue" %}</a></p>
+        {% else %}
+        <form method="post" action="{% url 'backoffice:used-part-add' case.pk %}" class="row g-2 align-items-end mb-4">
+          {% csrf_token %}
+          <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=used_part_form %}</div>
+          <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=used_part_form.part %}</div>
+          <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=used_part_form.quantity %}</div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Record part" %}</button>
+          </div>
+        </form>
+        {% endif %}
+
+        {% endif %}
+
+        <form method="post" action="{% url 'backoffice:work-docs-upload' case.pk %}" enctype="multipart/form-data" class="mb-2">
+          {% csrf_token %}
+          {% include "backoffice/includes/_form_errors.html" with form=work_docs_form %}
+          {% include "backoffice/includes/_field.html" with field=work_docs_form.files wrapper_class="mb-1" %}
+          <button type="submit" class="btn btn-sm btn-outline-primary">{% trans "Upload" %}</button>
+          <div class="form-text">{% trans "Optional: photos of installed parts or documents of the work done (stored under the Work stage)." %}</div>
+        </form>
+      {% else %}
+        <p class="text-muted small mb-0">{% trans "Create the work order first." %}</p>
+      {% endif %}
+    {% endsection %}
+
+    {% section "acc-quality" _("Quality control") %}
+      {% if work_order %}
+        {% for run in test_runs %}
+          <div class="border rounded p-2 mb-2 small">
+            {% if run.result == "PASS" %}
+              <span class="badge text-bg-success">{% trans "Pass" %}</span>
+            {% else %}
+              <span class="badge text-bg-danger">{% trans "Fail" %}</span>
+            {% endif %}
+            {% if run.kind %}<span class="badge text-bg-light border">{{ run.get_kind_display }}</span>{% endif %}
+            {% if run.fault_cleared is True %}
+              <span class="badge text-bg-light border">{% trans "Fault cleared" %}</span>
+            {% elif run.fault_cleared is False %}
+              <span class="badge text-bg-warning">{% trans "Fault not cleared" %}</span>
+            {% endif %}
+            {{ run.performed_at|date:"d.m.Y H:i" }}
+            {% if run.notes %}<div class="mt-1">{{ run.notes|linebreaksbr }}</div>{% endif %}
+          </div>
+        {% empty %}
+          <p class="text-muted small mb-2">{% trans "No quality-control test runs yet." %}</p>
+        {% endfor %}
+        <form method="post" action="{% url 'backoffice:test-run-record' case.pk %}">
+          {% csrf_token %}
+          {% include "backoffice/includes/_form_errors.html" with form=test_run_form %}
+          {% include "backoffice/includes/_field.html" with field=test_run_form.notes %}
+          <div class="row g-2 align-items-end">
+            <div class="col-md-5">{% include "backoffice/includes/_field.html" with field=test_run_form.kind %}</div>
+            <div class="col-md-5">{% include "backoffice/includes/_field.html" with field=test_run_form.result %}</div>
+          </div>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-7">{% include "backoffice/includes/_field.html" with field=test_run_form.fault_cleared %}</div>
+            <div class="col-md-5">
+              <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Record test run" %}</button>
+            </div>
+          </div>
+          <div class="form-text">{% trans "The asset is put into service or an appropriate test run is performed; a failed run sends the case back to rework." %}</div>
+        </form>
+      {% else %}
+        <p class="text-muted small mb-0">{% trans "Create the work order first." %}</p>
+      {% endif %}
+    {% endsection %}
+  {% endif %}
+
+  {% if transport_order %}
+    {% section "acc-transport" _("Transport") %}
+      <p class="mb-2">
+        {{ transport_order.origin }} &rarr; {{ transport_order.destination }}
+        - {{ transport_order.get_mode_display }}{% if transport_order.carrier_name %} ({{ transport_order.carrier_name }}){% endif %}
+        {% if transport_order.standard_departure_day %}<span class="badge text-bg-light">{{ transport_order.standard_departure_day }}</span>{% endif %}
+      </p>
+      <p class="mb-2">
+        {% if transport_order.asset_brand or transport_order.asset_model %}<span class="badge text-bg-light">{{ transport_order.asset_brand }} {{ transport_order.asset_model }}</span>{% endif %}
+        {% if transport_order.asset_length_m %}<span class="badge text-bg-light">{{ transport_order.asset_length_m }} m</span>{% endif %}
+        {% if transport_order.destination_zone %}<span class="badge text-bg-light">{{ transport_order.get_destination_zone_display }}</span>{% endif %}
+        {% if transport_order.pickup_slot %}<span class="badge text-bg-light">{% trans "pickup" %}: {{ transport_order.pickup_slot }}</span>{% endif %}
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'backoffice:transport-intake' case.pk %}">{% trans "Edit inquiry" %}</a>
+      </p>
+      {% if transport_offer %}
+        <p class="mb-2">
+          {% if transport_offer.suggested_price is not None %}<small class="text-muted">{% blocktrans with price=transport_offer.suggested_price %}Price-list suggestion: {{ price }} &euro;{% endblocktrans %}</small>{% endif %}
+          {% if transport_order.estimated_cost is not None %}<span class="badge text-bg-info">{% trans "estimate" %} {{ transport_order.estimated_cost }} &euro;</span>{% endif %}
+        </p>
+      {% endif %}
+      {% if transport_offer_form %}
+        <form method="post" action="{% url 'backoffice:transport-offer' case.pk %}" class="mb-3">
+          {% csrf_token %}
+          {% include "backoffice/includes/_form_errors.html" with form=transport_offer_form %}
+          {% include "backoffice/includes/_field.html" with field=transport_offer_form.description %}
+          <div class="row g-2 align-items-end">
+            <div class="col-md-5">{% include "backoffice/includes/_field.html" with field=transport_offer_form.amount %}</div>
+            <div class="col-md-5">
+              <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Create offer" %}</button>
+            </div>
+          </div>
+        </form>
+      {% endif %}
+      {% if transport_recommended_mode_label %}
+        <p class="mb-2"><small class="text-muted">{% blocktrans with mode=transport_recommended_mode_label %}Recommended by asset length: {{ mode }}{% endblocktrans %}</small></p>
+      {% endif %}
+      {% comment %}An asset own transport cannot handle (over ~10 m) has no
+      standard price - staff declare the found carrier's price, which notifies
+      staff that the transport can be arranged.{% endcomment %}
+      {% if transport_order.carrier_price_declared_at %}
+        <p class="mb-2"><span class="badge text-bg-info">{% trans "carrier price" %}</span> {{ transport_order.carrier_price }}{% if transport_order.carrier_name %} - {{ transport_order.carrier_name }}{% endif %} <small class="text-muted">({{ transport_order.carrier_price_declared_at|date:"d.m.Y H:i" }})</small></p>
+      {% elif transport_needs_carrier_price %}
+        <form method="post" action="{% url 'backoffice:transport-carrier-price' case.pk %}" class="row g-2 align-items-end mb-2">
+          {% csrf_token %}
+          <div class="col-12">
+            <p class="form-text mt-0 mb-1">{% trans "External carrier found - declare the price:" %}</p>
+            {% include "backoffice/includes/_form_errors.html" with form=carrier_price_form %}
+          </div>
+          <div class="col-md-5">{% include "backoffice/includes/_field.html" with field=carrier_price_form.carrier_name %}</div>
+          <div class="col-md-4">{% include "backoffice/includes/_field.html" with field=carrier_price_form.carrier_price %}</div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Declare price" %}</button>
+          </div>
+        </form>
+      {% endif %}
+      {% if transport_order.delivered_at %}
+        <p class="mb-0"><span class="badge text-bg-success">{% trans "delivered" %}</span> {{ transport_order.delivered_at|date:"d.m.Y H:i" }}{% if transport_order.delivery_note %} - <small>{{ transport_order.delivery_note }}</small>{% endif %}</p>
+      {% else %}
+        <p class="text-muted mb-0"><small>{% trans "Not delivered yet - record the delivery protocol below." %}</small></p>
+      {% endif %}
+
+      {% comment %}TRP-02 "Loading and unloading plan": agreed with the client
+      before the asset moves, which is why it sits above the loading card
+      rather than beside it. The departure guard reads the same items.{% endcomment %}
+      <div class="border-top mt-4 pt-3">
+        <h3 class="h6 mb-2">{% trans "Loading and unloading plan" %}</h3>
+        {% if loading_plan_missing %}
+          <p class="mb-2"><span class="badge text-bg-warning">{% trans "not agreed yet" %}</span>
+            <small class="text-muted">{% blocktrans with items=loading_plan_missing|join:", " %}Still open: {{ items }}{% endblocktrans %}</small>
+          </p>
+        {% else %}
+          <p class="mb-2"><span class="badge text-bg-success">{% trans "agreed" %}</span>
+            <small class="text-muted">
+              {{ loading_plan.unloading_location }}
+              &middot; {{ loading_plan.get_lifting_availability_display }}
+              &middot; {{ loading_plan.attendee }}
+            </small>
+          </p>
+        {% endif %}
+        <form method="post" action="{% url 'backoffice:transport-plan' case.pk %}">
+          {% csrf_token %}
+          {% include "backoffice/includes/_form_errors.html" with form=loading_plan_form %}
+          <div class="row g-2">
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_plan_form.unloading_location %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_plan_form.attendee %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_plan_form.lifting_availability %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_plan_form.lifting_notes %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_plan_form.loading_at %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_plan_form.unloading_at %}</div>
+            <div class="col-12">{% include "backoffice/includes/_field.html" with field=loading_plan_form.site_conditions %}</div>
+            <div class="col-12">{% include "backoffice/includes/_field.html" with field=loading_plan_form.notes %}</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm mt-2">{% trans "Save the plan" %}</button>
+        </form>
+      </div>
+
+      <div class="border-top mt-4 pt-3">
+        <h3 class="h6 d-flex justify-content-between align-items-center mb-2">
+          <span>{% trans "Loading and transport" %}</span>
+          <span class="badge text-bg-secondary">{% trans "internal only" %}</span>
+        </h3>
+        {% if loading_confirmation %}
+          <p class="mb-2">
+            {{ loading_confirmation.get_vehicle_type_display }}
+            &middot;
+            {% if loading_confirmation.readiness == "READY" %}
+              <span class="badge text-bg-success">{{ loading_confirmation.get_readiness_display }}</span>
+            {% elif loading_confirmation.readiness == "SECURED" %}
+              <span class="badge text-bg-warning">{{ loading_confirmation.get_readiness_display }}</span>
+            {% else %}
+              <span class="badge text-bg-secondary">{{ loading_confirmation.get_readiness_display }}</span>
+            {% endif %}
+            {% if loading_confirmation.lifting_equipment_used %}<span class="badge text-bg-light">{% trans "crane" %}</span>{% endif %}
+            {% if loading_confirmation.client_notified %}<span class="badge text-bg-light">{% trans "client notified" %}</span>{% endif %}
+          </p>
+          {% if loading_confirmation.signed_at %}
+            <p class="text-muted mb-2"><small>
+              {% trans "Signed by" %} {{ loading_confirmation.signed_by.get_full_name|default:loading_confirmation.signed_by }}
+              &middot; {{ loading_confirmation.signed_at|date:"d.m.Y H:i" }}
+            </small></p>
+          {% endif %}
+        {% endif %}
+        <form method="post" action="{% url 'backoffice:transport-loading' case.pk %}">
+          {% csrf_token %}
+          {% include "backoffice/includes/_form_errors.html" with form=loading_confirmation_form %}
+          <div class="row g-2">
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_confirmation_form.vehicle_type %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_confirmation_form.readiness %}</div>
+            <div class="col-12">
+              {% include "backoffice/includes/_field.html" with field=loading_confirmation_form.lifting_equipment_used wrapper_class="mb-1" %}
+              {% include "backoffice/includes/_field.html" with field=loading_confirmation_form.client_notified %}
+            </div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=loading_confirmation_form.carrier %}</div>
+            <div class="col-12">{% include "backoffice/includes/_field.html" with field=loading_confirmation_form.notes %}</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm mt-2">{% trans "Confirm loading (sign)" %}</button>
+        </form>
+      </div>
+
+      <div class="border-top mt-4 pt-3">
+        <h3 class="h6 mb-2">{% trans "Delivery" %}</h3>
+        {% if delivery_confirmation %}
+          <p class="mb-2">
+            {% if delivery_confirmation.unloading_done %}<span class="badge text-bg-success">{% trans "unloaded" %}</span>{% else %}<span class="badge text-bg-secondary">{% trans "not unloaded" %}</span>{% endif %}
+            {% if delivery_confirmation.put_into_service %}<span class="badge text-bg-success">{% trans "put into service" %}</span>{% else %}<span class="badge text-bg-secondary">{% trans "not put into service" %}</span>{% endif %}
+            {% if transport_order.delivered_at %}<small class="text-muted">{{ transport_order.delivered_at|date:"d.m.Y H:i" }}</small>{% endif %}
+          </p>
+          <p class="mb-2">
+            {% trans "Attendee:" %} {{ delivery_confirmation.attendee_name }}
+            <span class="badge text-bg-light">{{ delivery_confirmation.get_attendee_role_display }}</span>
+            {% if delivery_confirmation.attendee_contact %}<small class="text-muted">&middot; {{ delivery_confirmation.attendee_contact }}</small>{% endif %}
+          </p>
+          {% if delivery_confirmation.accompanying_employee %}
+            <p class="mb-2"><small>{% trans "Accompanied by" %} {{ delivery_confirmation.accompanying_employee.get_full_name|default:delivery_confirmation.accompanying_employee }}</small></p>
+          {% endif %}
+          {% if delivery_confirmation.signed_at %}
+            <p class="text-muted mb-2"><small>
+              {% trans "Signed by" %} {{ delivery_confirmation.signed_by.get_full_name|default:delivery_confirmation.signed_by }}
+              &middot; {{ delivery_confirmation.signed_at|date:"d.m.Y H:i" }}
+            </small></p>
+          {% endif %}
+          {% comment %}The physically signed protocol scan lives on the
+          confirmation.{% endcomment %}
+          {% if delivery_has_protocol %}
+            <p class="mb-2"><span class="badge text-bg-success">{% trans "signed protocol scan attached" %}</span></p>
+          {% else %}
+            <p class="mb-1"><span class="badge text-bg-warning">{% trans "signed protocol scan missing" %}</span></p>
+          {% endif %}
+          <form method="post" action="{% url 'backoffice:transport-delivery-protocol' case.pk %}" enctype="multipart/form-data" class="mb-4">
+            {% csrf_token %}
+            {% include "backoffice/includes/_form_errors.html" with form=delivery_protocol_form %}
+            {% include "backoffice/includes/_field.html" with field=delivery_protocol_form.file wrapper_class="mb-1" %}
+            <button type="submit" class="btn btn-sm btn-outline-primary">{% trans "Upload scan" %}</button>
+          </form>
+        {% endif %}
+        <form method="post" action="{% url 'backoffice:transport-delivery' case.pk %}">
+          {% csrf_token %}
+          {% include "backoffice/includes/_form_errors.html" with form=delivery_confirmation_form %}
+          <div class="row g-2">
+            <div class="col-12">
+              {% include "backoffice/includes/_field.html" with field=delivery_confirmation_form.unloading_done wrapper_class="mb-1" %}
+              {% include "backoffice/includes/_field.html" with field=delivery_confirmation_form.put_into_service %}
+            </div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=delivery_confirmation_form.attendee_role %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=delivery_confirmation_form.accompanying_employee %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=delivery_confirmation_form.attendee_name %}</div>
+            <div class="col-md-6">{% include "backoffice/includes/_field.html" with field=delivery_confirmation_form.attendee_contact %}</div>
+            <div class="col-12">{% include "backoffice/includes/_field.html" with field=delivery_confirmation_form.notes %}</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm mt-2">{% trans "Confirm delivery (sign)" %}</button>
+        </form>
+      </div>
+    {% endsection %}
+  {% endif %}
+</section>

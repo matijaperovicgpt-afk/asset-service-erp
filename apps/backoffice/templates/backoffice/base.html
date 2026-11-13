@@ -1,0 +1,65 @@
+{% load i18n static %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% trans "Backoffice" %}{% endblock %}</title>
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <link href="{% static 'vendor/bootstrap.min.css' %}" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+</head>
+{% comment %}Tier 3, "Ops". Staff and clients stand in one product: same
+   accent, same Barlow, same square corners, same tracked uppercase
+   micro-labels. The shells differ in WEIGHT, not in identity.
+
+   Weight is what stays behind here. No photography, no hero, no motion, and
+   no display type - Playfair is for the tier-1 hero on the public pages and
+   must never appear in the backoffice. Density is deliberate: this screen is
+   read for eight hours at a stretch, so making it bigger, airier or slower
+   to scan would be a downgrade wearing a redesign's clothes.
+
+   The bar at the top is templates/includes/brand_header.html, the same include
+   the portal and the sign-in page wear. Only its "ops" variant carries the
+   section nav, the admin link, the signed-in user and sign out - and it is
+   the only variant allowed a Bootstrap collapse toggler, because this is the
+   only shell that loads bootstrap.bundle.min.js (see the scripts at the foot
+   of this file). The header deliberately sits OUTSIDE <main>, so a boosted
+   swap never repaints it; the gap between it and the content is the
+   stylesheet's job now, not an mb-4 utility on the markup.
+{% endcomment %}
+<body class="admin" hx-boost="true" hx-indicator="#main" data-htmx-error="{% trans "Something went wrong. Please try again." %}" data-unsaved-hint="{% trans "Not saved yet" %}">
+{% comment %} First tab stop on every page, invisible until focused. The header
+   alone puts up to ten stops in front of <main>; this is the way past them.
+   It sits before the header, not inside the include, because the include is
+   also the thing being skipped. {% endcomment %}
+<a class="skip-link" href="#main" hx-boost="false">{% trans "Skip to main content" %}</a>
+{% include "includes/brand_header.html" with variant="ops" %}
+{% comment %} Boosted requests swap only #main (hx-select pulls it out of the full
+   response), so the header stays put and scroll position survives form
+   submits; show:none suppresses htmx's scroll-to-top for boosted forms.
+   hx-history-elt limits the history snapshot to #main as well: without it
+   htmx snapshots and restores the whole <body> on browser Back, which
+   re-inserts and re-executes the three <script src> tags at the foot of
+   the page. Bootstrap then owns two collapse handlers, and every section
+   toggle opens twice and never closes.
+   tabindex="-1" makes #main focusable by script and by the skip link's
+   fragment jump without adding a tab stop: without it the skip link only
+   scrolled, and the next Tab went straight back into the header. {% endcomment %}
+<main id="main" tabindex="-1" class="container app-shell pb-5" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:none" hx-history-elt>
+  {% if messages %}
+    <div class="flash-stack" aria-live="polite">
+      {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show shadow" role="alert" data-flash>
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans "Close" %}"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<script src="{% static 'vendor/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'vendor/htmx.min.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

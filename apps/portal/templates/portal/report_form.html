@@ -1,0 +1,350 @@
+{% extends "portal/base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Report a problem" %}{% endblock %}
+
+{% comment %} Tier 1. This is the page a client lands on cold, so it is the one
+   surface that carries the full brand: gradient hero, display headline, accent rule.
+
+   The hero is pure CSS decoration (see .brand-hero__media in app.css) - no image,
+   no video, no script - so the form below renders and submits regardless. To use
+   your own photo, set background-image on .brand-hero__media. {% endcomment %}
+{% block hero %}
+  <section class="brand-hero">
+    <div class="brand-hero__media" aria-hidden="true"></div>
+    <div class="brand-hero__scrim"></div>
+    <div class="brand-hero__content container">
+      <h1 class="brand-hero__title">{% trans "Report a problem" %}</h1>
+      <div class="brand-hero__rule"></div>
+      <p class="brand-hero__lead">
+        {% trans "Fill in the form below and our service team will get back to you. No account needed." %}
+      </p>
+    </div>
+  </section>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    {% comment %} .portal-card was deleted from app.css in the rebrand; the hook
+       is gone with it rather than left dangling on the markup. {% endcomment %}
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+
+          <div class="form-section">
+            <div class="form-section-title">
+              <span class="section-no">01</span>
+              <h2 class="section-label">{% trans "Contact" %}</h2>
+            </div>
+            {% include "portal/_field.html" with field=form.contact_name %}
+            {% include "portal/_field.html" with field=form.phone %}
+            {% include "portal/_field.html" with field=form.email %}
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">
+              <span class="section-no">02</span>
+              <h2 class="section-label">{% trans "Asset" %}</h2>
+            </div>
+            {% include "portal/_field.html" with field=form.asset_name %}
+            <div class="row">
+              <div class="col-sm-8">
+                {% include "portal/_field.html" with field=form.asset_model %}
+              </div>
+              <div class="col-sm-4">
+                {% include "portal/_field.html" with field=form.asset_length_m %}
+              </div>
+            </div>
+            {% include "portal/_field.html" with field=form.site_position %}
+            {% include "portal/_field.html" with field=form.asset_notes %}
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">
+              <span class="section-no">03</span>
+              <h2 class="section-label">{% trans "Location" %}</h2>
+            </div>
+            {% include "portal/_field.html" with field=form.location %}
+            {% include "portal/_field.html" with field=form.location_other %}
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">
+              <span class="section-no">04</span>
+              <h2 class="section-label">{% trans "Problem" %}</h2>
+            </div>
+            {% include "portal/_field.html" with field=form.symptoms_description %}
+            {% include "portal/_field.html" with field=form.client_diagnosis %}
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">
+              <span class="section-no">05</span>
+              <h2 class="section-label">{% trans "Attachments" %}</h2>
+            </div>
+            <div class="mb-3" id="field-photos">
+              <label class="form-label" for="{{ form.photos.id_for_label }}">
+                {{ form.photos.label }}
+              </label>
+              {% comment %} POR-05: limits come from apps/portal/forms.py so the
+                 browser never keeps a second copy that could drift from the
+                 server-side validators. stringformat:'s' is deliberate -
+                 under sr-latn a bare float renders as "0,82" and
+                 parseFloat() would read it as 0, silently disabling the
+                 downscaling. (Hash-comments are single-line only in Django's
+                 lexer; a multi-line one leaks verbatim into the page.)
+              {% endcomment %}
+              <div class="upload-zone" id="upload-zone"
+                   data-max-files="{{ max_upload_count|stringformat:'s' }}"
+                   data-max-edge="{{ downscale_max_edge|stringformat:'s' }}"
+                   data-quality="{{ downscale_quality|stringformat:'s' }}"
+                   data-min-bytes="{{ downscale_min_bytes|stringformat:'s' }}"
+                   data-label-preparing="{% trans "Preparing photos..." %}">
+                <div class="upload-icon" aria-hidden="true">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 16V4m0 0 4 4m-4-4-4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"
+                          stroke="currentColor" stroke-width="1.7"
+                          stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div id="upload-zone-text">{% trans "Drag files here or click to browse" %}</div>
+                {{ form.photos }}
+                <div class="upload-chips" id="upload-chips"></div>
+              </div>
+              <div class="form-text">{{ form.photos.help_text }}</div>
+              {% for error in form.photos.errors %}
+                <div class="text-danger small">{{ error }}</div>
+              {% endfor %}
+            </div>
+          </div>
+
+          {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+          <button type="submit" class="btn btn-primary btn-lg w-100 mt-2">{% trans "Submit report" %}</button>
+        </form>
+        <script>
+          // Progressive disclosure: the "Other location" input only
+          // appears when "Other" is selected. Without JS the field just
+          // stays visible (server-side validation is unchanged).
+          (function () {
+            var select = document.getElementById("id_location");
+            var other = document.getElementById("field-location_other");
+            if (!select || !other) return;
+            function toggle() {
+              other.style.display =
+                select.value === "__other__" ? "" : "none";
+            }
+            select.addEventListener("change", toggle);
+            toggle();
+          })();
+          // Upload drop zone: clicks/drops feed the real file input;
+          // chosen file names render as chips. Without JS the plain
+          // input inside the zone keeps working.
+          //
+          // POR-05: photos are also downscaled here, before upload.
+          // Upload speed is bounded by the *client's* connection - an asset
+          // owner on site Wi-Fi - so shrinking a 10 MB phone photo to
+          // ~500 KB is the only lever that makes the upload itself
+          // faster; it also slows disk growth server-side. Strictly
+          // advisory: the validators in apps/portal/forms.py are
+          // unchanged and remain the authority, and every failure path
+          // below falls back to uploading the original untouched.
+          (function () {
+            var zone = document.getElementById("upload-zone");
+            var input = zone && zone.querySelector('input[type="file"]');
+            var chips = document.getElementById("upload-chips");
+            if (!zone || !input || !chips) return;
+            var zoneText = document.getElementById("upload-zone-text");
+            var form = zone.closest ? zone.closest("form") : null;
+            var submit = form && form.querySelector('button[type="submit"]');
+
+            input.style.display = "none";
+            zone.addEventListener("click", function () { input.click(); });
+            zone.addEventListener("dragover", function (e) {
+              e.preventDefault();
+              zone.classList.add("dragover");
+            });
+            zone.addEventListener("dragleave", function () {
+              zone.classList.remove("dragover");
+            });
+            zone.addEventListener("drop", function (e) {
+              e.preventDefault();
+              zone.classList.remove("dragover");
+              if (e.dataTransfer && e.dataTransfer.files.length) {
+                applyFiles(e.dataTransfer.files);
+              }
+            });
+            input.addEventListener("change", function () { applyFiles(input.files); });
+
+            // Writing back to input.files is only possible through a
+            // DataTransfer; without it (or without canvas.toBlob) we
+            // leave the user's selection exactly as they made it.
+            var CAN_RESIZE =
+              typeof DataTransfer === "function" &&
+              typeof File === "function" &&
+              !!HTMLCanvasElement.prototype.toBlob &&
+              !!(window.URL && window.URL.createObjectURL);
+
+            var MAX_FILES = parseInt(zone.dataset.maxFiles, 10) || 5;
+            var MAX_EDGE = parseInt(zone.dataset.maxEdge, 10) || 2000;
+            var QUALITY = parseFloat(zone.dataset.quality) || 0.82;
+            var MIN_BYTES = parseInt(zone.dataset.minBytes, 10) || 1048576;
+            // GIF is excluded on purpose: a canvas re-encode would
+            // flatten an animation to its first frame.
+            var RESIZABLE = { "image/jpeg": 1, "image/png": 1 };
+
+            // EXIF orientation. Current browsers decode JPEGs already
+            // rotated, so drawImage draws them upright - but older ones
+            // do not, and the JPEG re-encode drops the EXIF tag, so
+            // getting this wrong ships the client sideways photos.
+            // Rather than sniff versions, probe once with a 2x1 JPEG
+            // tagged Orientation=6 (rotate 90): a browser that honours
+            // it reports the image as 1x2. If the probe cannot run we
+            // skip resizing altogether - an unresized photo is a
+            // nuisance, a rotated one is a bug.
+            var PROBE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wAALCAABAAIBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AP//Z";
+            var autoOrients = null;
+            var probing = true;
+            var queued = null;
+
+            (function probeOrientation() {
+              if (!CAN_RESIZE) { probing = false; return; }
+              var probe = new Image();
+              function settle(ok) {
+                autoOrients = ok;
+                probing = false;
+                if (queued) { var q = queued; queued = null; applyFiles(q); }
+              }
+              probe.onload = function () {
+                settle(probe.naturalWidth === 1 && probe.naturalHeight === 2);
+              };
+              probe.onerror = function () { settle(false); };
+              probe.src = PROBE;
+            })();
+
+            function processFile(file, done) {
+              if (!autoOrients || !RESIZABLE[file.type] || file.size <= MIN_BYTES) {
+                return done(file);
+              }
+              var url = URL.createObjectURL(file);
+              var img = new Image();
+              img.onerror = function () { URL.revokeObjectURL(url); done(file); };
+              img.onload = function () {
+                URL.revokeObjectURL(url);
+                var w = img.naturalWidth, h = img.naturalHeight;
+                if (!w || !h) return done(file);
+                var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+                if (scale === 1 && file.type === "image/jpeg") return done(file);
+                var canvas = document.createElement("canvas");
+                canvas.width = Math.round(w * scale);
+                canvas.height = Math.round(h * scale);
+                canvas.getContext("2d").drawImage(
+                  img, 0, 0, canvas.width, canvas.height
+                );
+                canvas.toBlob(function (blob) {
+                  // A re-encode that did not help (flat PNG screenshots
+                  // grow) - keep the original rather than upload more.
+                  if (!blob || blob.size >= file.size) return done(file);
+                  var renamed = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+                  try {
+                    done(new File([blob], renamed, {
+                      type: "image/jpeg", lastModified: file.lastModified
+                    }));
+                  } catch (err) { done(file); }
+                }, "image/jpeg", QUALITY);
+              };
+              img.src = url;
+            }
+
+            // Sequential, not parallel: five 12-megapixel decodes at
+            // once will exhaust memory on a mid-range phone, which is
+            // exactly the device this feature exists for.
+            function processAll(files, done) {
+              var out = [];
+              (function next(i) {
+                if (i >= files.length) return done(out);
+                processFile(files[i], function (result) {
+                  out.push(result);
+                  next(i + 1);
+                });
+              })(0);
+            }
+
+            function applyFiles(fileList) {
+              var files = Array.prototype.slice.call(fileList);
+              if (!files.length) return render([], []);
+              // Over the cap, or unable to resize: touch nothing, so the
+              // server's own "at most 5 files" error stays the accurate
+              // one and the originals upload unchanged.
+              if (!CAN_RESIZE || files.length > MAX_FILES) {
+                return render(files, files);
+              }
+              if (probing) { queued = fileList; return; }
+              setBusy(true);
+              processAll(files, function (out) {
+                var dt = new DataTransfer();
+                for (var i = 0; i < out.length; i++) dt.items.add(out[i]);
+                // Assigning .files does not fire "change", so no re-entry.
+                input.files = dt.files;
+                setBusy(false);
+                render(out, files);
+              });
+            }
+
+            var wantSubmit = false;
+            function setBusy(busy) {
+              zone.classList.toggle("is-busy", busy);
+              // hx-boost submits immediately; without this the originals
+              // would be posted while a decode was still pending.
+              if (submit) submit.disabled = busy;
+              if (zoneText) {
+                if (busy) {
+                  zoneText.dataset.idle = zoneText.dataset.idle || zoneText.textContent;
+                  zoneText.textContent = zone.dataset.labelPreparing;
+                } else if (zoneText.dataset.idle) {
+                  zoneText.textContent = zoneText.dataset.idle;
+                }
+              }
+              if (!busy && wantSubmit && form) {
+                wantSubmit = false;
+                if (form.requestSubmit) { form.requestSubmit(); } else { form.submit(); }
+              }
+            }
+            if (form) {
+              form.addEventListener("submit", function (e) {
+                if (zone.classList.contains("is-busy")) {
+                  e.preventDefault();
+                  wantSubmit = true;
+                }
+              });
+            }
+
+            function mb(bytes) { return (bytes / 1048576).toFixed(1); }
+            function render(out, originals) {
+              chips.innerHTML = "";
+              out.forEach(function (f, i) {
+                var chip = document.createElement("span");
+                chip.className = "chip";
+                chip.textContent = f.name;
+                var size = document.createElement("span");
+                size.className = "chip-size";
+                var was = originals && originals[i];
+                size.textContent = (was && was.size > f.size)
+                  ? mb(was.size) + " \u2192 " + mb(f.size) + " MB"
+                  : mb(f.size) + " MB";
+                chip.appendChild(size);
+                chips.appendChild(chip);
+              });
+            }
+          })();
+        </script>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

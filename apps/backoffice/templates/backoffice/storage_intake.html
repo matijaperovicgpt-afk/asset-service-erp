@@ -1,0 +1,99 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% blocktrans with id=case.pk %}Storage entry for case #{{ id }} - Backoffice{% endblocktrans %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:section-storage' %}">{% trans "Storage" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:case-detail' case.pk %}">#{{ case.pk }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Database entry" %}</li>
+    </ol>
+  </nav>
+  <h1 class="h3 mb-4">{% blocktrans with id=case.pk %}Database entry (Unos u bazu) - case #{{ id }}{% endblocktrans %}</h1>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">{% trans "Raw submission data" %}</div>
+        <div class="card-body">
+          <dl class="row mb-0">
+            <dt class="col-sm-3">{% trans "Contact name" %}</dt>
+            <dd class="col-sm-9">{{ case.raw_contact_name|default:"-" }}</dd>
+            <dt class="col-sm-3">{% trans "Phone" %}</dt>
+            <dd class="col-sm-9">{{ case.raw_phone|default:"-" }}</dd>
+            <dt class="col-sm-3">{% trans "Email" %}</dt>
+            <dd class="col-sm-9">{{ case.raw_email|default:"-" }}</dd>
+            <dt class="col-sm-3">{% trans "Asset info" %}</dt>
+            <dd class="col-sm-9">{{ case.raw_asset_info|default:"-" }}</dd>
+            <dt class="col-sm-3">{% trans "Location" %}</dt>
+            <dd class="col-sm-9">{{ case.location|default:"-" }}</dd>
+          </dl>
+        </div>
+      </div>
+
+      {% if case.client or case.asset %}
+        <div class="card mb-4">
+          <div class="card-header">{% trans "Already linked" %}</div>
+          <div class="card-body">
+            <dl class="row mb-0">
+              {% if case.client %}
+                <dt class="col-sm-3">{% trans "Client" %}</dt>
+                <dd class="col-sm-9">{{ case.client }}</dd>
+              {% endif %}
+              {% if case.asset %}
+                <dt class="col-sm-3">{% trans "Asset" %}</dt>
+                <dd class="col-sm-9">{{ case.asset }} ({{ case.asset.length_m }} m)</dd>
+              {% endif %}
+            </dl>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="card mb-4">
+        <div class="card-header">{% trans "Client, asset and agreement data" %}</div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {% include "backoffice/includes/_form_fields.html" with form=form wrapper_class="mb-3" %}
+            <button type="submit" class="btn btn-success">{% trans "Save to database" %}</button>
+            <a class="btn btn-outline-secondary" href="{% url 'backoffice:case-detail' case.pk %}">{% trans "Cancel" %}</a>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      {% for group_label, bands in band_groups %}
+        <div class="card mb-4">
+          <div class="card-header">{{ group_label }}</div>
+          <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th class="ps-3">{% trans "Length (m)" %}</th>
+                <th>{% trans "Daily" %}</th>
+                <th>{% trans "Monthly" %}</th>
+                <th class="pe-3">{% trans "Seasonal" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for band in bands %}
+                <tr>
+                  <td class="ps-3">{{ band.length_min_m }} - {{ band.length_max_m|default:"∞" }}</td>
+                  <td>{% if band.daily_price is not None %}{{ band.daily_price }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                  <td>{% if band.monthly_price is not None %}{{ band.monthly_price }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                  <td class="pe-3">{% if band.seasonal_price is not None %}{{ band.seasonal_price }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted p-3">{% trans "No price bands defined." %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

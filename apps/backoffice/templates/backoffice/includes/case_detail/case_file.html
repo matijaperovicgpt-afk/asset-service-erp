@@ -1,0 +1,146 @@
+{% load i18n form_tags %}
+<h2 class="guide-phase-title">{% trans "Case file" %}</h2>
+
+<div class="card mb-4">
+  <div class="card-header">{% trans "Case data" %}</div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{% trans "Client" %}</dt>
+      <dd class="col-sm-8">{{ case.client|default:"-" }}</dd>
+      <dt class="col-sm-4">{% trans "Asset" %}</dt>
+      <dd class="col-sm-8">{{ case.asset|default:"-" }}</dd>
+      <dt class="col-sm-4">{% trans "Report channel" %}</dt>
+      <dd class="col-sm-8">{{ case.get_report_channel_display }}</dd>
+      <dt class="col-sm-4">{% trans "Reported at" %}</dt>
+      <dd class="col-sm-8">{{ case.reported_at|date:"d.m.Y H:i" }}</dd>
+      {% if case.location %}
+        <dt class="col-sm-4">{% trans "Location" %}</dt>
+        <dd class="col-sm-8">{{ case.location }}</dd>
+      {% endif %}
+      {% if case.symptoms_description %}
+        <dt class="col-sm-4">{% trans "Symptoms" %}</dt>
+        <dd class="col-sm-8">{{ case.symptoms_description|linebreaksbr }}</dd>
+      {% endif %}
+      {% if case.client_diagnosis %}
+        <dt class="col-sm-4">{% trans "Client's assessment" %}</dt>
+        <dd class="col-sm-8">{{ case.client_diagnosis|linebreaksbr }}</dd>
+      {% endif %}
+      {% if case.assigned_technician %}
+        <dt class="col-sm-4">{% trans "Technician" %}</dt>
+        <dd class="col-sm-8">{{ case.assigned_technician }}</dd>
+      {% endif %}
+      <dt class="col-sm-4">{% trans "Financially settled" %}</dt>
+      <dd class="col-sm-8">{{ case.financially_settled|yesno }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card mb-4{% if guide.focus and not needs_triage %} guide-section-secondary{% endif %}">
+  <div class="card-header">{% trans "Raw submission data" %}</div>
+  <div class="card-body">
+    {% comment %} §7.1: these are the REPORTER's details as given, kept
+    as given. Who we actually contact is the designation in the
+    "Contact person" card, which may be somebody else entirely. {% endcomment %}
+    <p class="text-muted small mb-2">{% trans "As reported. Who we contact is designated separately." %}</p>
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{% trans "Reported by" %}</dt>
+      <dd class="col-sm-8">{{ case.raw_contact_name|default:"-" }}</dd>
+      <dt class="col-sm-4">{% trans "Phone" %}</dt>
+      <dd class="col-sm-8">{{ case.raw_phone|default:"-" }}</dd>
+      <dt class="col-sm-4">{% trans "Email" %}</dt>
+      <dd class="col-sm-8">{{ case.raw_email|default:"-" }}</dd>
+      <dt class="col-sm-4">{% trans "Asset info" %}</dt>
+      <dd class="col-sm-8">{{ case.raw_asset_info|default:"-"|linebreaksbr }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="guide-section{% if guide.focus and 'acc-status-history' not in guide.relevant_anchors %} guide-section-secondary{% endif %}" id="section-acc-status-history">
+  <button class="guide-section-toggle" type="button" data-bs-toggle="collapse"
+          data-bs-target="#acc-status-history" aria-expanded="false">{% trans "Status history" %}</button>
+  <div id="acc-status-history" class="collapse{% if guide.hero.anchor == 'acc-status-history' %} show{% endif %}">
+    <div class="card mb-4">
+      <div class="card-header">{% trans "Status history" %}</div>
+      <ul class="list-group list-group-flush">
+        {% for entry in status_history %}
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between">
+              <span>{{ entry.from_status.name|default:"-" }} &rarr; <strong>{{ entry.to_status.name }}</strong></span>
+              <small class="text-muted">{{ entry.changed_at|date:"d.m.Y H:i" }}</small>
+            </div>
+            <small class="text-muted">{{ entry.changed_by|default:"-" }}</small>
+            {% if entry.note %}<div><small>{{ entry.note }}</small></div>{% endif %}
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted">{% trans "No status changes yet." %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="guide-section{% if guide.focus and 'acc-activity' not in guide.relevant_anchors %} guide-section-secondary{% endif %}" id="section-acc-activity">
+  <button class="guide-section-toggle" type="button" data-bs-toggle="collapse"
+          data-bs-target="#acc-activity" aria-expanded="false">{% trans "Activity log" %}</button>
+  <div id="acc-activity" class="collapse{% if guide.hero.anchor == 'acc-activity' %} show{% endif %}">
+    <div class="card mb-4">
+      <div class="card-header">{% trans "Activity log" %}</div>
+      <ul class="list-group list-group-flush">
+        {% for entry in activity_log %}
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between">
+              <span class="badge text-bg-light">{{ entry.get_kind_display }}</span>
+              <small class="text-muted">{{ entry.created_at|date:"d.m.Y H:i" }}</small>
+            </div>
+            <div>{{ entry.text|linebreaksbr }}</div>
+            <small class="text-muted">{{ entry.author|default:"-" }}</small>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted">{% trans "No activity yet." %}</li>
+        {% endfor %}
+      </ul>
+      <div class="card-body border-top">
+        <h6 class="mb-2">{% trans "Add activity log entry" %}</h6>
+        <form method="post" action="{% url 'backoffice:case-activity-log' case.pk %}">
+          {% csrf_token %}
+          {% include "backoffice/includes/_form_errors.html" with form=activity_form %}
+          {% include "backoffice/includes/_field.html" with field=activity_form.kind %}
+          {% include "backoffice/includes/_field.html" with field=activity_form.text %}
+          <button type="submit" class="btn btn-primary btn-sm">{% trans "Add entry" %}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="guide-section{% if guide.focus and 'acc-attachments' not in guide.relevant_anchors %} guide-section-secondary{% endif %}" id="section-acc-attachments">
+  <button class="guide-section-toggle" type="button" data-bs-toggle="collapse"
+          data-bs-target="#acc-attachments" aria-expanded="false">{% trans "Attachments" %}</button>
+  <div id="acc-attachments" class="collapse{% if guide.hero.anchor == 'acc-attachments' %} show{% endif %}">
+    <div class="card mb-4">
+      <div class="card-header">{% trans "Attachments" %}</div>
+      <ul class="list-group list-group-flush">
+        {% for attachment in attachments %}
+          <li class="list-group-item d-flex justify-content-between">
+            <a href="{{ attachment.file.url }}">{{ attachment.original_name|default:attachment.file.name }}</a>
+            <small class="text-muted">{{ attachment.get_kind_display }} / {{ attachment.get_stage_display }}</small>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted">{% trans "No attachments." %}</li>
+        {% endfor %}
+      </ul>
+      <div class="card-body border-top">
+        <form method="post" action="{% url 'backoffice:attachment-upload' case.pk %}" enctype="multipart/form-data" class="row g-2 align-items-end">
+          {% csrf_token %}
+          <div class="col-12">{% include "backoffice/includes/_form_errors.html" with form=attachment_form %}</div>
+          <div class="col-md-5">{% include "backoffice/includes/_field.html" with field=attachment_form.file %}</div>
+          <div class="col-md-3">{% include "backoffice/includes/_field.html" with field=attachment_form.kind %}</div>
+          <div class="col-md-2">{% include "backoffice/includes/_field.html" with field=attachment_form.stage %}</div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-sm btn-primary mb-2">{% trans "Upload" %}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

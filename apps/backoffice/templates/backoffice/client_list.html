@@ -1,0 +1,85 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Clients" %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <div class="page-heading mb-4 d-flex align-items-center gap-2">
+    <h1 class="h3 mb-0">{% trans "Clients" %}</h1>
+    {% if page_obj %}<span class="badge text-bg-light">{{ page_obj.paginator.count }}</span>{% endif %}
+  </div>
+
+  <form method="get" class="row g-2 mb-4">
+    <div class="col-12 col-sm-auto">
+      <input type="search" name="q" value="{{ query }}" class="form-control"
+             placeholder="{% trans 'Name, phone or e-mail' %}" aria-label="{% trans 'Search clients' %}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary">{% trans "Search" %}</button>
+    </div>
+    {% if query %}
+      <div class="col-auto">
+        <a class="btn btn-outline-secondary" href="{% url 'backoffice:client-list' %}">{% trans "Clear" %}</a>
+      </div>
+    {% endif %}
+  </form>
+
+  <div class="card">
+    <div class="table-responsive">
+    <table class="table table-hover table-stack-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th class="ps-3">{% trans "Name" %}</th>
+          <th>{% trans "Contact" %}</th>
+          <th>{% trans "Assets" %}</th>
+          <th class="pe-3">{% trans "Open work" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for client in clients %}
+          <tr>
+            <td class="ps-3" data-label="{% trans "Name" %}">
+              <a class="fw-semibold" href="{% url 'backoffice:client-detail' client.pk %}">{{ client.name }}</a>
+              {% if client.is_company %}<span class="badge text-bg-secondary ms-1">{% trans "Company" %}</span>{% endif %}
+            </td>
+            <td class="text-muted" data-label="{% trans "Contact" %}">
+              {{ client.phone|default:"" }}{% if client.phone and client.email %} · {% endif %}{{ client.email|default:"" }}
+              {% if not client.phone and not client.email %}-{% endif %}
+            </td>
+            <td data-label="{% trans "Assets" %}">{{ client.asset_count }}</td>
+            <td class="pe-3" data-label="{% trans "Open work" %}">
+              {% if client.open_case_count %}
+                <span class="badge text-bg-primary">{{ client.open_case_count }}</span>
+              {% else %}
+                <span class="text-muted">0</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="text-muted p-3">{% trans "No clients found." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {% if is_paginated %}
+    <nav class="mt-4">
+      <ul class="pagination">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}">{% trans "Previous" %}</a>
+          </li>
+        {% endif %}
+        <li class="page-item disabled">
+          <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        </li>
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}">{% trans "Next" %}</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+{% endblock %}

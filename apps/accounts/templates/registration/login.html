@@ -1,0 +1,98 @@
+{% extends "registration/base_auth.html" %}
+{% load i18n static %}
+
+{% comment %}
+  TIER 1. The one auth page that fills the hero slot.
+
+  Everything below the hero is deliberately unchanged in kind: bootstrap's
+  own .form-label / .form-control / .btn-primary, inheriting whatever
+  body.admin makes of them. The staffer who signs in here meets the exact
+  same controls on the next page. That, not the hero, is what makes the
+  two feel like one product - the hero only buys the door some weight.
+{% endcomment %}
+{% block hero %}
+  {% comment %}
+    The same hero the portal landing page wears, built from the same parts on
+    purpose - see apps/portal/templates/portal/report_form.html. It is pure
+    CSS (a gradient on .brand-hero__media), so nothing here can delay or break
+    sign-in.
+  {% endcomment %}
+  <section class="brand-hero">
+    <div class="brand-hero__media" aria-hidden="true"></div>
+    <div class="brand-hero__scrim"></div>
+    <div class="brand-hero__content container">
+      {% comment %}
+        A <p>, not an <h1>, and both halves of that are deliberate. This is the
+        one place this hero differs from the portal's, which does use an <h1>.
+
+        Semantics: the page's heading is "Sign in", inside the card. This line
+        is a statement about the company, not a section title, and a screen
+        reader that announced it as the page heading would bury the one thing
+        the page is for. The portal card has no heading of its own; this one
+        does, and two <h1>s would be a worse document outline than none.
+
+        Cascade: app.css carries "body.admin h1, h2, h3 { font-family:
+        inherit }" at the foot of its Tier 3 block, to keep the display serif
+        out of the backoffice - and this shell wears body.admin (see
+        base_auth.html). On an <h1> that guard is (0,1,2) and would out-specify
+        a single-class rule, cancelling Playfair on the one auth page that
+        wants it. That used to be the only thing holding the brand here, which
+        made it a tripwire rather than a rule; app.css now states the
+        exception outright with "body.admin .brand-hero__title", so the serif
+        survives whatever element this line is marked up as. The <p> stays for
+        the semantic reason above, not for the cascade one.
+
+        .h1 does nothing here and is kept only as a hint about intended size
+        for anyone reading the markup alone. Bootstrap's .h1 is (0,1,0), so is
+        .brand-hero__title, and app.css loads second - it overrides .h1's
+        font-size, weight, line-height and margin, and the colour .h1 sets
+        resolves to inherit. It is NOT a floor: remove .brand-hero__title's
+        font-size and nothing catches it.
+      {% endcomment %}
+      <p class="brand-hero__title h1">{% trans "One case file per job." %}</p>
+      <div class="brand-hero__rule"></div>
+      <p class="brand-hero__lead">
+        {% comment %}The three nouns are three of the six sections of the nav on
+           the other side of this form, in the same order. The door names the
+           rooms behind it.{% endcomment %}
+        {% trans "Service, storage and transport. From the first call to handover." %}
+      </p>
+    </div>
+  </section>
+{% endblock %}
+
+{% block content %}
+  {% if form.errors %}
+    <div class="alert alert-danger py-2">{% trans "Wrong username or password." %}</div>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label" for="{{ form.username.id_for_label }}">{% trans "Username" %}</label>
+      {% comment %}
+        autocomplete/autocapitalize/spellcheck are the only additions here.
+        A password manager could not see these two fields before, and a
+        phone keyboard was capitalising the first letter of every username -
+        which on a page that answers a wrong guess with "Wrong username or
+        password" is an invisible way to be locked out. The value is echoed
+        back so a failed attempt does not also wipe what you typed.
+      {% endcomment %}
+      <input type="text" name="username" class="form-control" autofocus required
+             autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"
+             value="{{ form.username.value|default:'' }}"
+             id="{{ form.username.id_for_label }}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="{{ form.password.id_for_label }}">{% trans "Password" %}</label>
+      <input type="password" name="password" class="form-control" required
+             autocomplete="current-password" id="{{ form.password.id_for_label }}">
+    </div>
+    <input type="hidden" name="next" value="{{ next }}">
+    {% comment %}Plain .btn-primary, not the portal's .btn-lg CTA. It is already
+       full width, which is all the emphasis a page with one action needs, and
+       keeping it the same size as every primary button in the backoffice is
+       worth more here than a louder door.{% endcomment %}
+    <button type="submit" class="btn btn-primary w-100">{% trans "Sign in" %}</button>
+  </form>
+  <p class="mt-3 mb-0"><a href="{% url 'password_reset' %}"><small>{% trans "Forgot your password?" %}</small></a></p>
+{% endblock %}

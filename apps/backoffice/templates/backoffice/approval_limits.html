@@ -1,0 +1,161 @@
+{% extends "backoffice/base.html" %}
+{% load i18n form_tags %}
+
+{% block title %}{% trans "Approval limits" %} - {% trans "Backoffice" %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:home' %}">{% trans "Home" %}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Approval limits" %}</li>
+    </ol>
+  </nav>
+  <div class="page-heading mb-4 d-flex align-items-center gap-2">
+    <h1 class="h3 mb-0">{% trans "Approval limits" %}</h1>
+  </div>
+
+  <p class="text-muted">
+    {% trans "These limits decide who has to approve a quote before work may start (ACT-02). Amounts are in EUR; there is no currency choice, the whole application is single-currency." %}
+  </p>
+  <p class="text-muted">
+    {% trans "Up to the technician limit the service decides on its own authority and only the client's consent is needed; above it and up to the manager limit a manager approval is required; above the manager limit a director approval is required. The director amount is recorded for reference only - it is not read as a ceiling." %}
+  </p>
+  <p class="text-muted">
+    {% trans "A missing limit escalates conservatively: with no technician limit nothing is self-approvable, and with no manager limit every quote goes to the director." %}
+  </p>
+  {% if not can_edit %}
+    <p class="text-muted small">{% trans "Only the director may edit the approval limits: whoever can rewrite the ladder can approve past it, so this is not a price list (ACT-02)." %}</p>
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">{% trans "Approval ladder" %}</div>
+    <div class="table-responsive">
+      <table class="table table-edit table-stack-md align-middle mb-0">
+      <thead>
+        <tr>
+          <th class="ps-3">{% trans "Role" %}</th>
+          <th>{% trans "Maximum amount" %} (€)</th>
+          <th>{% trans "What this limit binds" %}</th>
+          {% if can_edit %}<th class="pe-3">{% trans "Actions" %}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in limit_rows %}
+          <tr>
+            <td class="ps-3" data-label="{% trans "Role" %}">
+              {{ row.role_label }}
+              {% if can_edit %}<div class="d-none">{{ row.form.role }}</div>{% endif %}
+            </td>
+            <td class="cell-mid" data-label="{% trans "Maximum amount" %} (€)">
+              {% if can_edit %}{% include "backoffice/includes/_field.html" with field=row.form.max_amount label_sr_only=True wrapper_class="mb-0" %}{% else %}{{ row.limit.max_amount }}{% endif %}
+              {% if row.is_pending %}
+                <div>
+                  <span class="badge text-bg-warning">{% trans "Placeholder - real amount pending from management (OPEN-01)" %}</span>
+                </div>
+              {% endif %}
+            </td>
+            <td class="text-muted small" data-label="{% trans "What this limit binds" %}">{{ row.tier_text }}</td>
+            {% if can_edit %}
+              <td class="pe-3" data-label="{% trans "Actions" %}">
+                <div class="row-actions">
+                  <button type="submit" class="btn btn-sm btn-primary"
+                          form="limit-form-{{ row.limit.pk }}">{% trans "Save" %}</button>
+                  <form method="post" action="{% url 'backoffice:approval-limit-delete' row.limit.pk %}" class="d-inline"
+                        onsubmit="return confirm('{% trans "Delete this approval limit? Amounts in that range will then escalate to the next level up." %}');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Delete" %}</button>
+                  </form>
+                </div>
+                <form method="post" action="{% url 'backoffice:approval-limit-edit' row.limit.pk %}" id="limit-form-{{ row.limit.pk }}">{% csrf_token %}</form>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="{% if can_edit %}4{% else %}3{% endif %}" class="text-muted p-3">{% trans "No approval limits configured yet - every quote escalates to the director." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+      </div>
+  </div>
+
+  {% if missing_roles %}
+    <p class="text-muted small">
+      {% trans "No limit is set for:" %}
+      {% for label in missing_roles %}{{ label }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </p>
+  {% endif %}
+
+  {% if extra_rows %}
+    <div class="card mb-4">
+      <div class="card-header">{% trans "Rows the approval ladder does not read" %}</div>
+      <div class="card-body">
+        <p class="text-muted small mb-2">
+          {% trans "These limits sit on roles the approval ladder never consults (ACT-02 knows only the technician, manager and director rungs), so they have no effect. They are shown here so nothing is hidden; delete them when they are no longer wanted." %}
+        </p>
+        <ul class="list-unstyled mb-0">
+          {% for row in extra_rows %}
+            <li class="mb-1">
+              <span class="badge text-bg-secondary">{% trans "ignored" %}</span>
+              {{ row }}
+              {% if can_edit %}
+                <form method="post" action="{% url 'backoffice:approval-limit-delete' row.pk %}" class="d-inline"
+                      onsubmit="return confirm('{% trans "Delete this approval limit?" %}');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Delete" %}</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if recent_changes %}
+    <div class="card mb-4">
+      <div class="card-header">{% trans "Recent changes to the ladder" %}</div>
+      <div class="card-body">
+        <p class="text-muted small mb-2">
+          {% trans "Who changed which rung, and when. The trail is append-only (INV-03) and outlives the limit it describes, so a disputed approval can be reconstructed." %}
+        </p>
+        <ul class="list-unstyled mb-0 small">
+          {% for change in recent_changes %}
+            <li class="mb-1">
+              <span class="text-muted">{{ change.changed_at|date:"d.m.Y H:i" }}</span>
+              - {{ change.get_role_display }}:
+              {{ change.get_action_display|lower }}
+              {% if change.old_amount is not None %}{{ change.old_amount }} €{% endif %}
+              {% if change.old_amount is not None and change.new_amount is not None %}&rarr;{% endif %}
+              {% if change.new_amount is not None %}{{ change.new_amount }} €{% endif %}
+              - {% if change.actor %}{{ change.actor }}{% else %}{% trans "deleted account" %}{% endif %}
+              {% if change.actor_role %}({{ change.actor_role }}){% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if can_edit %}
+    <div class="card">
+      <div class="card-header">{% trans "Add approval limit" %}</div>
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            {% include "backoffice/includes/_field.html" with field=add_form.role wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-3">
+            {% include "backoffice/includes/_field.html" with field=add_form.max_amount wrapper_class="mb-0" %}
+          </div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary" form="limit-form-new">{% trans "Add limit" %}</button>
+            <form method="post" action="{% url 'backoffice:approval-limit-add' %}" id="limit-form-new">{% csrf_token %}</form>
+          </div>
+        </div>
+        <p class="text-muted small mb-0 mt-2">
+          {% trans "One limit per role. The technician limit must stay strictly below the manager limit and below the director limit, otherwise a tier the ladder is meant to catch is empty and those amounts need no internal approval at all." %}
+        </p>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

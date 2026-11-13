@@ -1,0 +1,111 @@
+{% extends "backoffice/base.html" %}
+{% load i18n %}
+
+{% block title %}{% blocktrans with id=case.pk %}Triage case #{{ id }} - Backoffice{% endblocktrans %}{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:case-list' %}">{% trans "Cases" %}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'backoffice:case-detail' case.pk %}">#{{ case.pk }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% trans "Triage" %}</li>
+    </ol>
+  </nav>
+  <h1 class="h3 mb-4">{% blocktrans with id=case.pk %}Triage case #{{ id }}{% endblocktrans %}</h1>
+
+  <div class="card mb-4">
+    <div class="card-header">{% trans "Raw submission data" %}</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">{% trans "Contact name" %}</dt>
+        <dd class="col-sm-9">{{ case.raw_contact_name|default:"-" }}</dd>
+        <dt class="col-sm-3">{% trans "Phone" %}</dt>
+        <dd class="col-sm-9">{{ case.raw_phone|default:"-" }}</dd>
+        <dt class="col-sm-3">{% trans "Email" %}</dt>
+        <dd class="col-sm-9">{{ case.raw_email|default:"-" }}</dd>
+        <dt class="col-sm-3">{% trans "Asset info" %}</dt>
+        <dd class="col-sm-9">{{ case.raw_asset_info|default:"-" }}</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h2 class="h5 mb-3">{% trans "Suggested matches" %}</h2>
+  {% comment %} Below 576px .table-stack-sm turns each row into a stacked block
+     (labels from data-label), so the asset select keeps a usable width and
+     the Link button stays on screen instead of past the right edge.
+     .table-responsive is the fallback for anything still too wide. {% endcomment %}
+  <div class="table-responsive">
+  <table class="table table-striped bg-white table-stack-sm">
+    <thead>
+      <tr>
+        <th>{% trans "Client" %}</th>
+        <th>{% trans "Asset" %}</th>
+        <th>{% trans "Score" %}</th>
+        <th>{% trans "Reasons" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for suggestion in suggestions %}
+        <tr>
+          <td data-label="{% trans "Client" %}">{{ suggestion.client }}</td>
+          <td data-label="{% trans "Asset" %}">
+            {% if suggestion.asset %}
+              {{ suggestion.asset }}
+            {% else %}
+              {% with assets=suggestion.client.assets.all %}
+                {% if assets %}
+                  {% comment %} No registration in the raw text, but the client has
+                     assets on file: offer them here rather than linking the client
+                     alone and leaving the asset to be created a second time by the
+                     next form. form= binds the select to the Link form in the last
+                     cell; a client can appear in two rows, hence the counter. {% endcomment %}
+                  <select name="asset_id" form="link-{{ forloop.counter }}" class="form-select form-select-sm triage-asset-select" aria-label="{% trans "Asset" %}">
+                    <option value="">{% trans "— no asset —" %}</option>
+                    {% for asset in assets %}
+                      <option value="{{ asset.pk }}">{{ asset }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  -
+                {% endif %}
+              {% endwith %}
+            {% endif %}
+          </td>
+          <td data-label="{% trans "Score" %}">{{ suggestion.score }}</td>
+          <td data-label="{% trans "Reasons" %}">
+            {% for reason in suggestion.reasons %}
+              <div>{{ reason }}</div>
+            {% endfor %}
+          </td>
+          <td class="text-nowrap">
+            <form method="post" id="link-{{ forloop.counter }}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="link">
+              <input type="hidden" name="client_id" value="{{ suggestion.client.pk }}">
+              {% if suggestion.asset %}
+                <input type="hidden" name="asset_id" value="{{ suggestion.asset.pk }}">
+              {% endif %}
+              <button type="submit" class="btn btn-sm btn-primary">{% trans "Link" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-muted">{% trans "No matches found." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <h2 class="h5 mb-3 mt-4">{% trans "Create new client" %}</h2>
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create">
+        {% include "backoffice/includes/_form_fields.html" with form=form wrapper_class="mb-3" %}
+        <button type="submit" class="btn btn-success">{% trans "Create and link" %}</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}

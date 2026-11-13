@@ -1,0 +1,83 @@
+services:
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      # The image bakes prod settings; dev compose overrides them.
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/mysql-init.sql:ro
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-erp}
+      MYSQL_USER: ${DB_USER:-erp}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-erp}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "3306:3306"
+
+  # Optional in dev: the app runs fine without it (no REDIS_URL means a
+  # local-memory cache and inline background tasks). Start it, and the
+  # worker beside it, only when you want to exercise the real queue:
+  #   docker compose --profile redis up -d redis worker
+  redis:
+    image: redis:7-alpine
+    profiles: ["redis"]
+    # noeviction, NOT allkeys-lru: this instance carries the Celery queue
+    # on db 1 next to the cache on db 0, and LRU eviction must never be
+    # allowed to drop a queued job.
+    command: redis-server --maxmemory 256mb --maxmemory-policy noeviction
+    ports:
+      - "6379:6379"          # dev only, for redis-cli inspection
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Same image as web, so it has ffmpeg/ffprobe for video posters and
+  # transcodes. Video transcoding only ever runs here or from
+  # `manage.py backfill_video_derivatives` - never on a request path.
+  worker:
+    build: .
+    profiles: ["redis"]
+    command: celery -A config worker -l info --concurrency 2
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      # Pinned so the worker always has a broker to consume from. For web
+      # to actually ENQUEUE here, put REDIS_URL=redis://redis:6379/0 in
+      # .env too - inside the compose network the host is "redis", not
+      # 127.0.0.1. Without that, web stays eager and this worker idles.
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_COLLECTSTATIC: "0"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

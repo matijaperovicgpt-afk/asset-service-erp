@@ -1,0 +1,118 @@
+# Production compose: gunicorn behind a host-level nginx (see
+# docker/nginx.conf.example). No source bind-mount, MySQL not published,
+# named volumes for DB/media/static.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Required in .env: DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS (prod
+# settings refuse to boot without them), DB_PASSWORD, MYSQL_ROOT_PASSWORD.
+#
+# Set REDIS_URL=redis://redis:6379/0 to move notification e-mail (NTF-05)
+# and thumbnail generation off the request path onto the worker below.
+# Leave it unset and both simply run inline, as they always did.
+#
+# Video transcoding is the one job that never falls back to inline: with
+# no broker it is skipped at upload time (poster frames are still built)
+# and the backlog is produced on demand with
+#   docker compose -f docker-compose.prod.yml exec web \
+#     python manage.py backfill_video_derivatives --limit 20
+services:
+  web:
+    build: .
+    ports:
+      # nginx on the host proxies to this; not exposed publicly.
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      # Set to "1" for single-replica deploys to migrate on start.
+      DJANGO_MIGRATE_ON_START: ${DJANGO_MIGRATE_ON_START:-1}
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Same image as web, different command - which is also how the worker
+  # gets ffmpeg/ffprobe for video posters and transcodes (see Dockerfile).
+  # Everything it runs is fire-and-forget: a job lost to a restart costs
+  # one notification, one thumbnail (backfill_thumbnails rebuilds it) or
+  # one video derivative (backfill_video_derivatives rebuilds it), never
+  # data - the uploaded original is never touched by any of them.
+  worker:
+    build: .
+    command: celery -A config worker -l info --concurrency 2
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      # web owns both: collectstatic would race it on the shared static
+      # volume, and there must be exactly one migrator.
+      DJANGO_COLLECTSTATIC: "0"
+      DJANGO_MIGRATE_ON_START: "0"
+    volumes:
+      # Thumbnails, video poster frames and transcoded MP4 copies are all
+      # written here, and ffmpeg reads the originals from here too.
+      # Without this mount the task opens a missing file and only logs -
+      # and nothing in the UI would show it, because the gallery silently
+      # falls back to the full-size original.
+      - media_data:/app/media
+    healthcheck:
+      # Replaces the image's HTTP probe, which is meaningless for a
+      # worker and would mark it permanently unhealthy.
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    # noeviction, NOT allkeys-lru: this instance carries the Celery queue
+    # on db 1 next to the cache on db 0, and LRU eviction must never be
+    # allowed to drop a queued job.
+    command: redis-server --maxmemory 256mb --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    # No published ports: only web and worker reach it.
+
+  mysql:
+    image: mysql:8
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/mysql-init.sql:ro
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-erp}
+      MYSQL_USER: ${DB_USER:-erp}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # No published ports: only the web container reaches MySQL.
+
+volumes:
+  mysql_data:
+  media_data:
+  static_data:
+  redis_data:

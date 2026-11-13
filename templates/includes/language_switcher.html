@@ -1,0 +1,29 @@
+{% load i18n %}{% get_current_language as LANGUAGE_CODE %}
+{% comment %}Full reload on purpose: the whole chrome (navbar, <html lang>) changes language.
+
+The button's visible text is a two-letter code, which on its own announces as
+"EN, button" - a control whose label says nothing about what it does. The
+accessible name therefore comes from aria-label, which overrides the text for
+assistive tech while leaving the compact SR/EN visual intact.
+
+The `title` is deliberately NOT translated, and that is not an oversight. It
+carries the language's endonym - its name in its own language - which is what a
+language picker is supposed to show: a reader who cannot read the current page's
+language is exactly the person reaching for this control, so "Srpski (latinica)"
+has to stay legible to a Serbian speaker even while the UI is in English. The
+aria-label around it IS translated, because that sentence is addressed to
+someone who can read the page they are already on.
+{% endcomment %}
+<form action="{% url 'set_language' %}" method="post" class="d-inline" hx-boost="false">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  {% if LANGUAGE_CODE == "en" %}
+    <button type="submit" name="language" value="sr-latn"
+            class="btn btn-sm btn-outline-light" title="Srpski (latinica)"
+            aria-label="{% trans "Switch language to Serbian (Latin)" %}">SR</button>
+  {% else %}
+    <button type="submit" name="language" value="en"
+            class="btn btn-sm btn-outline-light" title="English"
+            aria-label="{% trans "Switch language to English" %}">EN</button>
+  {% endif %}
+</form>

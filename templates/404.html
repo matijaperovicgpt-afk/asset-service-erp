@@ -1,0 +1,6 @@
+{% extends "errors/base_error.html" %}
+{% load i18n %}
+{% block title %}{% trans "Page not found" %}{% endblock %}
+{% block code %}404{% endblock %}
+{% block heading %}{% trans "Page not found" %}{% endblock %}
+{% block message %}{% trans "The page you asked for does not exist, or the record it showed has been removed." %}{% endblock %}
